@@ -1,0 +1,35 @@
+<!DOCTYPE QGLVIEWER>
+<QGLViewer version="2.3.11">
+  <State stereo="false" cameraMode="revolve">
+    <foregroundColor red="180" blue="180" green="180"/>
+    <backgroundColor red="51" blue="51" green="51"/>
+  </State>
+  <Display axisIsDrawn="false" gridIsDrawn="false" FPSIsDisplayed="true" cameraIsEdited="false"/>
+  <Geometry fullScreen="false" width="739" posX="443" height="517" posY="291"/>
+  <Camera>
+    <Parameters fieldOfView="0.785398" sceneRadius="1" Type="PERSPECTIVE" zNearCoefficient="0.005" orthoCoef="0.414214" zClippingCoefficient="1.73205">
+      <SceneCenter x="0" y="0" z="0"/>
+    </Parameters>
+    <Stereo distToScreen="0.5" focusDistance="2.41421" physScreenWidth="0.4" IODist="0.062"/>
+    <ManipulatedCameraFrame>
+      <position x="0.806122" y="0.251098" z="0.259718"/>
+      <orientation q0="-0.285506" q1="-0.426339" q2="-0.743659" q3="-0.428593"/>
+      <ManipulatedParameters transSens="1" rotSens="1" wheelSens="1" spinSens="0.3"/>
+      <ManipulatedCameraParameters flySpeed="0.01">
+        <flyUpVector x="0" y="1" z="0"/>
+      </ManipulatedCameraParameters>
+    </ManipulatedCameraFrame>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="1" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0.822052" y="0.258949" z="0.269264"/>
+        <orientation q0="-0.285506" q1="-0.426339" q2="-0.743659" q3="-0.428593"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="2" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0.806122" y="0.251098" z="0.259718"/>
+        <orientation q0="-0.285506" q1="-0.426339" q2="-0.743659" q3="-0.428593"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+  </Camera>
+</QGLViewer>

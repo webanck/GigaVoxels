@@ -1,0 +1,132 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2013 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * GigaVoxels is distributed under a dual-license scheme.
+ * You can obtain a specific license from Inria at gigavoxels-licensing@inria.fr.
+ * Otherwise the default license is the GPL version 3.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+/**
+ * Time stamps buffer
+ */
+__constant__ GvCore::Array3DKernelLinear< uint > k_VTC_TimeStampArray;
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** INLINE DEFINITION *****************************
+ ******************************************************************************/
+
+/******************************************************************************
+ * CacheManagerFlagTimeStampsSP KERNEL
+ *
+ * Create the list of used and non-used elements at current time (in a single pass)
+ *
+ * @param cacheManager
+ * @param numElem
+ * @param timeStampsElemAddressList
+ * @param tempMaskList ouput mask of non-used element at current frame
+ * @param tempMaskList2 ouput mask of used element at current frame
+ ******************************************************************************/
+__global__
+void CacheManagerFlagTimeStampsSP( uint numElem, uint* timeStampsElemAddressList, uint* tempMaskList, uint* tempMaskList2 )
+{
+	// Compute global element index
+	uint lineSize = __uimul( blockDim.x, gridDim.x );
+	uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
+
+	// Check bounds (max number of elements to process)
+	if ( elem < numElem )
+	{
+		uint elemAddressEnc = timeStampsElemAddressList[ elem ];
+		//uint3 elemAddress = AddressType::unpackAddress( elemAddressEnc );
+
+		// Generate an error
+		if //( cacheManager._timeStampArray.get( elemAddress ) == k_currentTime )
+			( k_VTC_TimeStampArray.get( elemAddressEnc ) == k_currentTime )
+		{
+			tempMaskList[ elem ] = 0;
+			tempMaskList2[ elem ] = 1;
+		}
+		else
+		{
+			tempMaskList[ elem ] = 1;
+			tempMaskList2[ elem ] = 0;
+		}
+	}
+}
+
+/******************************************************************************
+ * CacheManagerCreateUpdateMask KERNEL
+ *
+ * Given an input list of nodes updated with their requests, it outputs an equivalent lists of masks [ 0 or 1 ]
+ * depending of the comparison with a given flag.
+ * Flag is a type of requests as "subdivide node" or "produce brick"
+ *
+ * @param numElem number of elements to process
+ * @param updateList input list of nodes updated with their requests
+ * @param resMask resulting list of masks of requests whose type is the same as the given flag
+ * @param flag flag used to compare the value of input requests
+ ******************************************************************************/
+__global__
+void CacheManagerCreateUpdateMask( const uint numElem, const uint* updateList, uint* resMask, const uint flag )
+{
+	// Compute global element index
+	uint lineSize = __uimul( blockDim.x, gridDim.x );
+	uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
+
+	// Check bounds (max number of elements to process)
+	if ( elem < numElem )
+	{
+		uint elemVal = updateList[ elem ];
+
+		if ( elemVal & flag )
+		{
+			resMask[ elem ] = 1;
+		}
+		else
+		{
+			resMask[ elem ] = 0;
+		}
+	}
+}

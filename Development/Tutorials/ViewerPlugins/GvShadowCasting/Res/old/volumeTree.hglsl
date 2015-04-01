@@ -1,0 +1,153 @@
+// volumeTree.hglsl
+#ifndef _VOLUME_TREE_HGLSL_
+#define _VOLUME_TREE_HGLSL_
+
+uniform layout(size1x32) uimageBuffer d_volTreeChildArray;
+uniform layout(size1x32) uimageBuffer d_volTreeDataArray;
+
+/**
+ * Octree node structure
+ */
+struct OctreeNode
+{
+	/**
+	 * Child address
+	 */
+	uint childAddress;
+
+	/**
+	 * Brick address
+	 */
+	uint brickAddress;
+};
+
+/******************************************************************************
+ * ...
+ *
+ * @param pAddress ...
+*
+ * @return ...
+ ******************************************************************************/
+uint unpackNodeAddress( uint pAddress )
+{
+	return ( pAddress & 0x3FFFFFFFU );
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pAddress ...
+ *
+ * @return ...
+ ******************************************************************************/
+uvec3 unpackBrickAddress( uint pAddress )
+{
+	uvec3 res;
+	res.x = ( pAddress & 0x3FF00000U ) >> 20U;
+	res.y = ( pAddress & 0x000FFC00U ) >> 10U;
+	res.z = pAddress & 0x000003FFU;
+
+	return res;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ * @param pNodeTileAddress ...
+ * @param pNodeTileOffset ...
+ ******************************************************************************/
+void fetchOctreeNode( out OctreeNode pNode, uint pNodeTileAddress, uint pNodeTileOffset )
+{
+	// Load a single texel from an image
+	pNode.childAddress = imageLoad( d_volTreeChildArray, int( pNodeTileAddress + pNodeTileOffset ) ).x;
+
+	// Load a single texel from an image
+	pNode.brickAddress = imageLoad( d_volTreeDataArray, int( pNodeTileAddress + pNodeTileOffset ) ).x;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+bool nodeIsInitialized( OctreeNode pNode )
+{
+	return ( pNode.childAddress != 0 ) || ( pNode.brickAddress != 0 );
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+bool nodeHasSubNodes( OctreeNode pNode )
+{
+	return ( pNode.childAddress & 0x3FFFFFFFU ) != 0;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+bool nodeIsBrick( OctreeNode pNode )
+{
+	return ( pNode.childAddress & 0x40000000U ) != 0;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+bool nodeHasBrick( OctreeNode pNode )
+{
+	return nodeIsBrick( pNode ) && pNode.brickAddress != 0;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+bool nodeIsTerminal( OctreeNode pNode )
+{
+	return ( pNode.childAddress & 0x80000000U ) != 0;
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+uint nodeGetChildAddress( OctreeNode pNode )
+{
+	return unpackNodeAddress( pNode.childAddress );
+}
+
+/******************************************************************************
+ * ...
+ *
+ * @param pNode ...
+ *
+ * @return ...
+ ******************************************************************************/
+uvec3 nodeGetBrickAddress( OctreeNode pNode )
+{
+	return unpackBrickAddress( pNode.brickAddress );
+}
+
+#endif // !_VOLUME_TREE_HGLSL_

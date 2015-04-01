@@ -1,0 +1,16 @@
+<Model name="dino" directory="." nbLevels="4">
+    <NodeTree>
+        <Level id="0" filename="dino_BR8_B1_L0.nodes" />
+        <Level id="1" filename="dino_BR8_B1_L1.nodes" />
+        <Level id="2" filename="dino_BR8_B1_L2.nodes" />
+        <Level id="3" filename="dino_BR8_B1_L3.nodes" />
+    </NodeTree>
+    <BrickData brickResolution="8" borderSize="1">
+        <Channel id="0" name="color" type="uchar4">
+            <Level id="0" filename="dino_BR8_B1_L0_C0_uchar4.bricks" />
+            <Level id="1" filename="dino_BR8_B1_L1_C0_uchar4.bricks" />
+            <Level id="2" filename="dino_BR8_B1_L2_C0_uchar4.bricks" />
+            <Level id="3" filename="dino_BR8_B1_L3_C0_uchar4.bricks" />
+        </Channel>
+    </BrickData>
+</Model>

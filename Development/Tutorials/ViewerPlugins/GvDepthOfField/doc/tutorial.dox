@@ -1,0 +1,19 @@
+/*! \page Tutorial_Depth_Of_Field Depth of Field Tutorial
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section Overview_Section Overview
+ *
+ * This tutorial shows how to use depth of field with GigaVoxels.
+ * This feature comes from free with our volume rendering implementation.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ *
+ * Here is a screenshot of the Depth of Field sample in action.
+ *
+ * \image html tutorial_depthoffield_overview.png "Depth of Field"
+ */
+ 

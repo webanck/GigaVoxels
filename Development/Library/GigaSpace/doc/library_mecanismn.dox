@@ -1,0 +1,16 @@
+/** \page Mecanismns Mecanismns
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * This page gives some explanation about the GigaVoxels pipeline.
+ *
+ *
+ * @section Overview_Section Overview
+ *
+ * This page is divided in the following sections:
+ *
+ * - \subpage Mecanismn_TheGigaVoxelsApproach
+ * - \subpage Mecanismn_IO_Streaming
+ *
+ */
+ 

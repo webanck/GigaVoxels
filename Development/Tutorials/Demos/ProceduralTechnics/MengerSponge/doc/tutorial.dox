@@ -1,0 +1,21 @@
+/*! \page Tutorial_Menger_Sponge Menger Sponge Tutorial
+ * 
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * This tutorial shows how to create data proceduraly on the GPU.
+ * A menger sponge set is generated on the fly.
+ * This example also shows the mecanismn of instancing that comes from free with Gigavoxels.
+ * A root node is created, and a graph is generated infinitely by cycling on this root.
+ * Thus, voxels are only generated for this root node.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ *
+ * Here is a screenshot of the Menger Sponge Set sample in action.
+ * \image html tutorial_mengersponge_overview.png "Menger Sponge"
+ *
+ */
+ 

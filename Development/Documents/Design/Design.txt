@@ -1,0 +1,10 @@
+LOKI
+
+TypeList
+Generalized Functor
+CRTT pattern : voir livre APP c++ Design
+
+
+Idée : BOOST
+The Boost Concept Check Library (BCCL)
+http://www.boost.org/doc/libs/1_42_0/libs/concept_check/concept_check.htm

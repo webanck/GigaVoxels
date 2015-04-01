@@ -1,0 +1,474 @@
+/*! \page Tutorial_Dynamic_Load Dynamic Load Tutorial Dynamic Load Tutorial
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * This example show the usage of producers to load data from disk.
+ *
+ * <br> 
+ * The main themes related to volume rendering are :
+ * - I/O streaming
+ * - cahce mechanism
+ * - color alpha-premultiplication (to avoid color bleeding)
+ * - shading model (lambert illumination model)
+ *
+ * <br>
+ * \image html dynamic_load.png "A dragon whose data is read from disk"
+ *
+ * <br>
+ * <hr>
+ *
+ * @section Tutorial_Dynamic_Load_Mandatory_Section Recommandation
+ *
+ * FIRST, assure you have read the basic programming scheme of GigaVoxels available in the \ref Library_HowToProgram_TheBasics_Page section. 
+ *
+ * SECOND, assure you have read the Simple Sphere tutorial available in the \ref Tutorial_Simple_Sphere section.
+ * This one describe the basics to produce data on GPU whose mecanism is needed in this tutorial.
+ * <br>
+ * <hr>
+ *
+ * @section UMLDesign_Section UML Design
+ *
+ * The following screenshot is a simplified class Diagram of the classes used in this tutorial.
+ *
+ * Different colors are used to ease comprehension :
+ * - RED    : third party dependency classes (QGLViewer, Loki, etc...)
+ * - BLUE   : GigaVoxels classes
+ * - YELLOW : user HOST classes
+ * - GREEN  : user DEVICE classes
+ *
+ * The SampleCore class is the main GigaVoxels pipeline containing :
+ * - the GigaVoxels COMMON classes
+ * \li DATA STRUCTURE : the sparse voxel octree structure GvStructure::GvVolumeTree
+ * \li CACHE : the cache manager system GvStructure::GvVolumeTreeCache
+ * \li RENDERER : the ray-casting renderer GvRenderer::VolumeTreeRendererCUDA
+ * - the USER defined classes
+ * \li PRODUCER : a host ProducerLoad with its associated device-side ProducerLoadKernem
+ * \li SHADER : a host ShaderLoad with its associated device-side ShaderLoadKernel
+ *
+ * <br>
+ * \image html UML_DynamicLoadDemo.png "UML class diagram"
+ *
+ * <br>
+ *
+ * QGLViewer and ManipulatedFrame are IHM classes to create a 3D window and a light interactor.
+ *
+ * <br>
+ * <hr>
+ *
+ * @section Tutorial_Dynamic_Load_DataStructure Data Structure
+ *
+ * The content of a voxel is represented by one channel :
+ * - RGBA colors (uchar4 type)
+  *
+ * \code
+ * typedef Loki::TL::MakeTypelist< uchar4 >::Result DataType;
+ * \endcode
+ *
+ * The data structre is an octree (2x2x2) defined by :
+ * \code 
+ * // Defines the size of a node tile
+ * typedef gigavoxels::StaticRes1D< 2 > NodeRes;
+ *
+ * // Defines the size of a brick
+ * typedef gigavoxels::StaticRes1D< 8 > BrickRes;
+ *
+ * // Defines the size of the border around a brick
+ * enum { BrickBorderSize = 1 };
+ *
+ * // Defines the total size of a brick
+ * typedef gigavoxels::StaticRes1D< 8 + 2 * BrickBorderSize > RealBrickRes;
+ *
+ * // Defines the type of structure we want to use. Array3DGPUTex is the type of array used to store the bricks.
+ * typedef gigavoxels::VolumeTree< DataType, gigavoxels::Array3DGPUTex, NodeRes, BrickRes, BrickBorderSize > VolumeTreeType;
+ * \endcode 
+ *
+ * <br>
+ * Now let's have a look at the SphereProducerKernal code. As said before, users have to write a produceData() method for each of the two channel :
+ * - node tiles,
+ * - bricks of voxels.
+ *
+ * <br>
+ * <hr>
+ * \section Tutorial_Dynamic_Load_Node_Tiles_Production Node tiles production
+ *
+ * In this section, we detail code to explain how to produce nodes.
+ *
+ * Compared to the Simple Sphere tutorial, the part where the oracle determine the type of the region of the nodes disapeared.
+ * Data has been processed on the HOST during a previous step.
+ *
+ * \code
+ /******************************************************************************
+ * Produce data on device.
+ * Implement the produceData method for the channel 0 (nodes)
+ *
+ * Producing data mecanism works element by element (node tile or brick) depending on the channel.
+ *
+ * In the function, user has to produce data for a node tile or a brick of voxels :
+ * - for a node tile, user has to defined regions (i.e nodes) where lies data, constant values,
+ * etc...
+ * - for a brick, user has to produce data (i.e voxels) at for each of the channels
+ * user had previously defined (color, normal, density, etc...)
+ *
+ * @param pGpuPool The device side pool (nodes or bricks)
+ * @param pRequestID The current processed element coming from the data requests list (a node tile or a brick)
+ * @param pProcessID Index of one of the elements inside a node tile or a voxel bricks
+ * @param pNewElemAddress The address at which to write the produced data in the pool
+ * @param pParentLocInfo The localization info used to locate an element in the pool
+ * @param Loki::Int2Type< 0 > corresponds to the index of the node pool
+ *
+ * @return A feedback value that the user can return.
+ ******************************************************************************/
+template< typename NodeRes, typename BrickRes, uint BorderSize, typename VolTreeKernelType >
+template< typename GPUPoolKernelType >
+__device__
+inline uint SphereProducerKernel< NodeRes, BrickRes, BorderSize, VolTreeKernelType >
+::produceData( GPUPoolKernelType& nodePool, uint requestID, uint processID, uint3 newElemAddress,
+			  const GvCore::GvLocalizationInfo& parentLocInfo, Loki::Int2Type< 0 > )
+{
+	// NOTE :
+	// In this method, you are inside a node tile.
+	// The goal is to determine, for each node of the node tile, which type of data it holds.
+	// Data type can be :
+	// - a constant region,
+	// - a region with data,
+	// - a region where max resolution is reached.
+	// So, one thread is responsible of the production of one node of a node tile.
+	
+	// NOTE :
+	// In this method, you are inside a node tile.
+	// A pre-process step on HOST has previously determined, for each node of the node tile, which type of data it holds.
+	// Data type can be :
+	// - a constant region,
+	// - a region with data,
+	// - a region where max resolution is reached.
+	// So, one thread is responsible of the production of one node of a node tile.
+
+	// Get localization info (code and depth)
+	uint3 parentLocCode = parentLocInfo.locCode.get();
+	uint parentLocDepth = parentLocInfo.locDepth.get();
+
+	// Check bound
+	if ( processID < NodeRes::getNumElements() )
+	{
+		// Create a new node
+		GvStructure::OctreeNode newnode;
+
+		// Initialize the child address with the HOST nodes cache
+		newnode.childAddress = _cpuNodesCache.get( requestID * NodeRes::getNumElements() + processID );
+
+		// Initialize the brick address
+		newnode.brickAddress = 0;
+
+		// Finally, write the new node information into the node pool by selecting channels :
+		// - Loki::Int2Type< 0 >() points to node information
+		// - Loki::Int2Type< 1 >() points to brick information
+		//
+		// newElemAddress.x + processID : is the adress of the new node in the node pool
+		nodePool.getChannel( Loki::Int2Type< 0 >() ).set( newElemAddress.x + processID, newnode.childAddress );
+		nodePool.getChannel( Loki::Int2Type< 1 >() ).set( newElemAddress.x + processID, newnode.brickAddress );
+	}
+
+	return 0;
+}
+ * \endcode 
+ *
+ * <br>
+ *
+ * In the following, details the oracle part where regions of space are analysed to determine wheter or not it contains data.
+ *
+ * <br>
+ * <hr>
+ * \section Tutorial_Dynamic_Load_Brick_Of_Voxels Brick of voxels production
+ *
+ * In this section, we detail code to explain how to produce bricks of voxels.
+ *
+ * Compared to the Simple Sphere tutorial, the part where the retrieve data is read from a buffer
+ * whose data has been processed on the HOST during a previous step.
+ *
+ * \code
+ /******************************************************************************
+ * Produce data on device.
+ * Implement the produceData method for the channel 1 (bricks)
+ *
+ * Producing data mecanism works element by element (node tile or brick) depending on the channel.
+ *
+ * In the function, user has to produce data for a node tile or a brick of voxels :
+ * - for a node tile, user has to defined regions (i.e nodes) where lies data, constant values,
+ * etc...
+ * - for a brick, user has to produce data (i.e voxels) at for each of the channels
+ * user had previously defined (color, normal, density, etc...)
+ *
+ * @param pGpuPool The device side pool (nodes or bricks)
+ * @param pRequestID The current processed element coming from the data requests list (a node tile or a brick)
+ * @param pProcessID Index of one of the elements inside a node tile or a voxel bricks
+ * @param pNewElemAddress The address at which to write the produced data in the pool
+ * @param pParentLocInfo The localization info used to locate an element in the pool
+ * @param Loki::Int2Type< 1 > corresponds to the index of the brick pool
+ *
+ * @return A feedback value that the user can return.
+ ******************************************************************************/
+template< typename NodeRes, typename BrickRes, uint BorderSize, typename VolTreeKernelType >
+template< typename GPUPoolKernelType >
+__device__
+inline uint SphereProducerKernel< NodeRes, BrickRes, BorderSize, VolTreeKernelType >
+::produceData( GPUPoolKernelType& dataPool, uint requestID, uint processID, uint3 newElemAddress,
+			  const GvCore::GvLocalizationInfo& parentLocInfo, Loki::Int2Type< 1 > )
+{
+	// NOTE :
+	// In this method, you are inside a brick of voxels.
+	// The goal is to determine, for each voxel of the brick, the value of each of its channels.
+	//
+	// Data type has previously been defined by the user, as a
+	// typedef Loki::TL::MakeTypelist< uchar4, half4 >::Result DataType;
+	//
+	// In this tutorial, we have choosen two channels containing color at channel 0 and normal at channel 1.
+	
+	// parentLocDepth++; //Shift needed, to be corrected
+	bool nonNull = ProducerLoadKernel_ChannelLoad
+		<
+		DataTList, NodeRes, BrickFullRes, DataCachePoolKernelType, TGPUPoolKernelType, GvCore::DataNumChannels< DataTList >::value - 1
+		>::produceDataChannel( *this, pDataPool, pNewElemAddress, pParentLocInfo, pRequestID, pProcessID );
+
+	return 0;
+}
+ *
+ * \endcode
+ *
+ * \code
+ /******************************************************************************
+ * Produce data at the specified channel
+ *
+ * @param gpuVPLK reference on the volume producer load kernel
+ * @param dataPool the data pool in which to write data
+ * @param elemAddress The address at which to write the produced data in the pool
+ * @param parentLocInfo The localization info used to locate an element in the pool
+ * @param pRequestID The current processed element coming from the data requests list (a brick)
+ * @param pProcessID Index of one of the elements inside a voxel bricks
+******************************************************************************/
+template< class DataTList, class NodeTileRes, class BrickFullRes, class DataCachePoolKernelType, typename GPUPoolKernelType, int channel >
+__device__
+inline bool ProducerLoadKernel_ChannelLoad< DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType, GPUPoolKernelType, channel >
+::produceDataChannel( ProducerLoadKernel< DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType >& gpuVPLK,
+					 GPUPoolKernelType& dataPool, uint3 elemAddress, const GvCore::GvLocalizationInfo& parentLocInfo, uint requestID, uint processID )
+{
+	uint blockIndex = requestID;
+
+	// Number of voxels
+	uint brickNumVoxels = BrickFullRes::numElements;
+	uint blockStartAddress = blockIndex * ProducerLoadKernel< DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType >::BrickVoxelAlignment;
+
+	uint blockNumThreads = blockDim.x * blockDim.y * blockDim.z;
+
+	// Iterate through voxels of the current brick
+	uint decal;
+	for ( decal = 0; decal < brickNumVoxels; decal += blockNumThreads )
+	{
+		uint locDecal = decal + processID;
+
+		if ( locDecal < brickNumVoxels )
+		{
+			typedef typename GvCore::DataChannelType< DataTList, channel >::Result VoxelType;
+			VoxelType voxelData;
+
+			uint locDecalOffset = locDecal;
+			voxelData = gpuVPLK._cpuDataCachePool.getChannel( Loki::Int2Type< channel >() ).get( blockStartAddress + locDecalOffset );
+
+			uint3 voxelOffset;
+			voxelOffset.x = locDecal % BrickFullRes::x;
+			voxelOffset.y = ( locDecal / BrickFullRes::x ) % BrickFullRes::y;
+			voxelOffset.z = ( locDecal / ( BrickFullRes::x * BrickFullRes::y ) );
+			uint3 destAddress = elemAddress + make_uint3( voxelOffset );
+
+			// Write the voxel's data for the specified channel index
+			dataPool.setValue< channel >( destAddress, voxelData );
+		}
+	}
+
+	// Recursive call to produce data until the last channel is reached
+	return ProducerLoadKernel_ChannelLoad
+			<
+				DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType, GPUPoolKernelType, channel - 1
+			>::produceDataChannel( gpuVPLK, dataPool, elemAddress, parentLocInfo, requestID, processID );
+}
+ *
+ *
+ * template< class DataTList, class NodeTileRes, class BrickFullRes, class DataCachePoolKernelType, typename GPUPoolKernelType >
+ * __device__
+ * inline bool ProducerLoadKernel_ChannelLoad< DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType, GPUPoolKernelType, -1 >
+ * ::produceDataChannel( ProducerLoadKernel< DataTList, NodeTileRes, BrickFullRes, DataCachePoolKernelType >& gpuVPLK,
+ * 					  GPUPoolKernelType& dataPool, uint3 elemAddress, const GvCore::GvLocalizationInfo& parentLocInfo, uint requestID, uint processID )
+ * {
+ * 	return false;
+ * }
+ *
+ * \endcode
+ *
+ * <br>
+ * <hr>
+ * \section Tutorial_Dynamic_Load_Node_Tiles_Production_on_HOST Node tiles production on HOST
+ *
+ * In this section, we detail code to explain how to produce nodes on host.
+ *
+ * \code
+ /******************************************************************************
+ * This method is called by the cache manager when you have to produce data for a given pool.
+ * Implement the produceData method for the channel 0 (nodes)
+ *
+ * @param pNumElems the number of elements you have to produce.
+ * @param pNodeAddressCompactList a list containing the addresses of the numElems nodes concerned.
+ * @param pElemAddressCompactList a list containing numElems addresses where you need to store the result.
+ * @param pGpuPool the pool for which we need to produce elements.
+ * @param pPageTable the page table associated to the pool
+ * @param Loki::Int2Type< 0 > corresponds to the index of the node pool
+ ******************************************************************************/
+template< typename DataTList, typename NodeRes, typename BrickRes, uint BorderSize >
+template< typename ElementRes, typename GPUPoolType, typename PageTableType >
+inline void ProducerLoad< DataTList, NodeRes, BrickRes, BorderSize >
+::produceData( uint numElems,
+				thrust::device_vector< uint >* nodesAddressCompactList,
+				thrust::device_vector< uint >* elemAddressCompactList,
+				GPUPoolType& gpuPool,
+				PageTableType pageTable,
+				Loki::Int2Type< 0 > )
+{
+	// Initialize the device-side producer (with the node pool and the brick pool)
+	_kernelProducer.init( _maxDepth, _h_nodesBuffer->getDeviceArray(), _channelsCachesPool->getKernelPool() );
+	GvCore::GvIProviderKernel< 0, KernelProducerType > kernelProvider( _kernelProducer );
+
+	// Define kernel block size
+	// 1D block (warp size)
+	dim3 blockSize( 32, 1, 1 );
+
+	// Retrieve localization info
+	GvCore::GvLocalizationInfo::CodeType* locCodeList = thrust::raw_pointer_cast( &(*d_TempLocalizationCodeList)[ 0 ] );
+	GvCore::GvLocalizationInfo::DepthType* locDepthList = thrust::raw_pointer_cast( &(*d_TempLocalizationDepthList)[ 0 ] );
+
+	// Retrieve elements address lists
+	uint* nodesAddressList = thrust::raw_pointer_cast( &(*nodesAddressCompactList)[ 0 ] );
+	uint* elemAddressList = thrust::raw_pointer_cast( &(*elemAddressCompactList)[ 0 ] );
+
+	if ( numElems > 0 )
+	{
+		// Prevent too workload
+		uint numRequests = mincc( numElems, _nbMaxRequests );
+
+		// Create localization info lists of the node elements to produce (code and depth)
+		//
+		// Resulting lists are written into the two following buffers :
+		// - d_TempLocalizationCodeList
+		// - d_TempLocalizationDepthList
+		pageTable->createLocalizationLists( numRequests, nodesAddressList, d_TempLocalizationCodeList, d_TempLocalizationDepthList );
+	}
+	// Iterate through elements (i.e. nodes)
+	while ( numElems > 0 )
+	{
+		// Prevent too workload
+		uint numRequests = mincc( numElems, _nbMaxRequests );
+
+		// Create localization info lists of the node elements to produce (code and depth)
+		//
+		// Resulting lists are written into the two following buffers :
+		// - d_TempLocalizationCodeList
+		// - d_TempLocalizationDepthList
+		//pageTable->createLocalizationLists( numRequests, nodesAddressList, d_TempLocalizationCodeList, d_TempLocalizationDepthList );
+
+		// For each node on the lists, thanks to its localization info,
+		// an oracle will determine the type the associated 3D region of space
+		// (i.e. max depth reached, containing data, etc...)
+		//
+		// Node info are then written 
+		preLoadManagementNodes( numRequests, locDepthList, locCodeList );
+
+		// Call cache helper to write into cache
+		//
+		// This will then call the associated DEVICE-side producer
+		// whose goal is to update the
+		_cacheHelper.genericWriteIntoCache< ElementRes >( numRequests, nodesAddressList, elemAddressList, gpuPool, kernelProvider, pageTable, blockSize );
+
+		// Update loop variables
+		numElems			-= numRequests;
+		nodesAddressList	+= numRequests;
+		elemAddressList		+= numRequests;
+	}
+}
+ * \endcode
+ *
+ * <br>
+ * <hr>
+ * \section Tutorial_Dynamic_Load_Brick_Of_Voxels_on_HOST Brick of voxels production on HOST
+ *
+ * In this section, we detail code to explain how to produce nodes on host.
+ *
+ * \code
+  *
+ /******************************************************************************
+ * This method is called by the cache manager when you have to produce data for a given pool.
+ * Implement the produceData method for the channel 1 (bricks)
+ *
+ * @param pNumElems the number of elements you have to produce.
+ * @param pNodeAddressCompactList a list containing the addresses of the numElems nodes concerned.
+ * @param pElemAddressCompactList a list containing numElems addresses where you need to store the result.
+ * @param pGpuPool the pool for which we need to produce elements.
+ * @param pPageTable the page table associated to the pool
+ * @param Loki::Int2Type< 1 > corresponds to the index of the brick pool
+ ******************************************************************************/
+template< typename DataTList, typename NodeRes, typename BrickRes, uint BorderSize >
+template< typename ElementRes, typename GPUPoolType, typename PageTableType >
+inline void ProducerLoad< DataTList, NodeRes, BrickRes, BorderSize >
+::produceData( uint numElems,
+				thrust::device_vector< uint > *nodesAddressCompactList,
+				thrust::device_vector< uint > *elemAddressCompactList,
+				GPUPoolType& gpuPool,
+				PageTableType pageTable,
+				Loki::Int2Type< 1 > )
+{
+	// Initialize the device-side producer (with the node pool and the brick pool)
+	_kernelProducer.init( _maxDepth, _h_nodesBuffer->getDeviceArray(), _channelsCachesPool->getKernelPool() );
+	GvCore::GvIProviderKernel< 1, KernelProducerType > kernelProvider( _kernelProducer );
+
+	// Define kernel block size
+	dim3 blockSize( 16, 8, 1 );
+
+	// Retrieve localization info
+	GvCore::GvLocalizationInfo::CodeType* locCodeList = thrust::raw_pointer_cast( &(*d_TempLocalizationCodeList)[ 0 ] );
+	GvCore::GvLocalizationInfo::DepthType* locDepthList = thrust::raw_pointer_cast( &(*d_TempLocalizationDepthList)[ 0 ] );
+
+	// Retrieve elements address lists
+	uint* nodesAddressList = thrust::raw_pointer_cast( &(*nodesAddressCompactList)[ 0 ] );
+	uint* elemAddressList = thrust::raw_pointer_cast( &(*elemAddressCompactList)[ 0 ] );
+
+	if ( numElems > 0 )
+	{
+		uint numRequests = mincc( numElems, _nbMaxRequests );
+
+		// Create localization lists (code and depth)
+		pageTable->createLocalizationLists( numRequests, nodesAddressList, d_TempLocalizationCodeList, d_TempLocalizationDepthList );
+	}
+
+	// Iterate through elements
+	while ( numElems > 0 )
+	{
+		uint numRequests = mincc( numElems, _nbMaxRequests );
+
+	//	// Create localization lists (code and depth)
+	//	pageTable->createLocalizationLists( numRequests, nodesAddressList, d_TempLocalizationCodeList, d_TempLocalizationDepthList );
+
+		preLoadManagementData( numRequests, locDepthList, locCodeList );
+
+		// Call cache helper to write into cache
+		_cacheHelper.genericWriteIntoCache< ElementRes >( numRequests, nodesAddressList, elemAddressList, gpuPool, kernelProvider, pageTable, blockSize );
+
+		// Update loop variables
+		numElems			-= numRequests;
+		nodesAddressList	+= numRequests;
+		elemAddressList		+= numRequests;
+	}
+}
+
+ * \endcode
+ 
+ * <br>
+ */
+ 

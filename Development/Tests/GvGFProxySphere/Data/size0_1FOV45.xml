@@ -1,0 +1,51 @@
+<!DOCTYPE QGLVIEWER>
+<QGLViewer version="2.3.17">
+  <State stereo="false" cameraMode="revolve">
+    <foregroundColor red="180" blue="180" green="180"/>
+    <backgroundColor red="51" blue="51" green="51"/>
+  </State>
+  <Display axisIsDrawn="false" gridIsDrawn="false" FPSIsDisplayed="false" cameraIsEdited="false"/>
+  <Geometry fullScreen="false" width="1920" posX="-8" height="1138" posY="-8"/>
+  <Camera>
+    <Parameters fieldOfView="0.785398" sceneRadius="1" Type="PERSPECTIVE" zNearCoefficient="0.005" orthoCoef="0.414214" zClippingCoefficient="1.73205">
+      <SceneCenter x="0" y="0" z="0"/>
+    </Parameters>
+    <Stereo focusDistance="2.41421" physScreenWidth="0.5" IODist="0.062"/>
+    <ManipulatedCameraFrame>
+      <position x="0.0771086" y="0.115776" z="0.0783191"/>
+      <orientation q0="-0.363838" q1="0.349738" q2="0.152935" q3="0.849656"/>
+      <ManipulatedParameters transSens="1" rotSens="1" wheelSens="1" spinSens="0.3"/>
+      <ManipulatedCameraParameters flySpeed="0.01">
+        <flyUpVector x="0" y="1" z="0"/>
+      </ManipulatedCameraParameters>
+    </ManipulatedCameraFrame>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="1" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0" y="0" z="1.74516"/>
+        <orientation q0="0" q1="0" q2="0" q3="1"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="2" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0" y="0" z="0.159636"/>
+        <orientation q0="0" q1="0" q2="0" q3="1"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="3" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0.111469" y="-7.66824e-12" z="0.114273"/>
+        <orientation q0="2.62661e-11" q1="0.37694" q2="8.51262e-13" q3="0.926238"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="2" speed="1" period="40" loop="false" index="5" time="1" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0.0921772" y="0.0959103" z="0.0882514"/>
+        <orientation q0="-0.293218" q1="0.370957" q2="0.119781" q3="0.872964"/>
+      </KeyFrame>
+      <KeyFrame index="1" time="1">
+        <position x="0.0771086" y="0.115776" z="0.0783191"/>
+        <orientation q0="-0.363838" q1="0.349738" q2="0.152935" q3="0.849656"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+  </Camera>
+</QGLViewer>

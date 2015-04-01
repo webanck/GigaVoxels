@@ -1,0 +1,48 @@
+/*! \page Tool_GvViewer GigaVoxels Viewer
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ * The GigaVoxels Viewer is an application used to visualize voxel data interactively.
+ * It has been designed as :
+ * - a CORE library,
+ * - a GUI library,
+ * - and the main executable.
+ *
+ * There are two main GUI components:
+ * - the browsers (on the left),
+ * - and the editors (on the right).
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ * Here is a screenshot of the GigaVoxels Viewer in action.
+ * \image html GUI.png "The GigaVoxels Viewer"
+ *
+ * <hr>
+ *
+ * @section Dependances_Section Dependances
+ * The viewer is build in C++ upon the Qt library.
+ * Currently, the 3D window is from QGLViewer library, but it should change to pure Qt.
+ *
+ * <hr>
+ *
+ * @section Features_Section Features
+ * The viewer comes with a customizable and extensible C++ API.
+ * Furthermore, main features are:
+ * - 3D interactors,
+ * - customizable data browsers,
+ * - customizable data editor,
+ * - transfer functions editor,
+ * - internationalization languages,
+ * - API and user manual documentation,
+ * - ...
+ *
+ * <hr>
+ *
+ * @section Philosophy_Section Philosophy
+ * This viewer along with its API has been thought of as a dynamic loader/viewer
+ * of GigaVoxels sample programs. As is done in the 3D real-time engine, Ogre3D,
+ * samples are written as plugins that are dynamically loaded on demand.
+ */
+ 

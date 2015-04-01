@@ -1,0 +1,11 @@
+/*! \page Tools Tools
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * This page is divided in the following sections:
+ * - Viewer
+ * \li \subpage Tool_GvViewer
+ * - Voxelizer
+ * \li \subpage Tool_GvVoxelizer
+ */
+ 

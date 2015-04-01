@@ -1,0 +1,58 @@
+First simplified version but the principe is:
+
+
+Windows:
+[ 1 ]
+- Go in Install directory and use the script "unzip all" if present, or unzip all external dependencies in the "External" directory. You should obtain a x64 or x86 directory storing all dependencies.
+
+[ 2 ]
+- Install ImageMagick Tools: it is located in the Tools.7z compressed file in the "External" directory.
+
+
+[ 3 ]
+- Go in Install directory and edit the script "makeLibrary.bat" to choose which version of Visual Studio you want to use, then execute the script.
+- The "makeLibrary.bat" generate a "Generated_VC10" directory where you can find the generated Visual Solution (in fact the subfolder Library directory)
+- Open "the Library.sln" and compile.
+- All GigaVoxels header files (*h., *.inl, *.hcu), library files (GigaVoxels.dll and/or GigaVoxels.lib) are copied in the root "Release" directory (Bin, Inc, Lib).
+- This "Release" directory is used as a SDK repository that all Tutorials and Tools use to compile.
+
+[ 4 ]
+- Now, as for the library, go in Install directory and launch "makeDemoTutorials.bat"
+- Like before, go in the Generated_VC10 directory and compile the Tutorials solution.
+
+[ 5 ]
+- Now, as for the library and tutorials, go in Install directory and launch "makeTools.bat"
+- Like before, go in the Generated_VC10 directory and compile the Tools solution.
+
+- Now, as for the library, go in Install directory and launch "makeViewerPluginTutorials.bat"
+- Like before, go in the Generated_VC10 directory and compile the Tutorials solution.
+
+
+[ 6 ]
+- Go in Install directory and use the script "updateRelease.bat" to copy all libraries needed at run-time in the Release directory where all Tutorials and Tools have been copied.
+
+[ 7 ]
+- Go in Data directory and unzip the few voxels 3D models in the Data\Voxels directory (do "extract here" with 7-zip)
+- Go in Data directory and unzip the few 3D Models in the Data\3DModels directory (do "extract here" with 7-zip)
+
+- Go in Install directory and use the script "updateData.bat" to copy all data needed at run-time in the Release directory where all Tutorials and Tools have been copied.
+- Go in Install directory and use the script "updateShaders.bat" to copy all data needed at run-time in the Release directory where all Tutorials and Tools have been copied.
+
+
+[ 8 ]
+- Go in "Release/Bin" to launch your demos.
+- NOTE: For the moment, the viewer.exe and voxelizer.exe tools are located in the Release\Tools subdirectory. Copy them in the Release\Bin directory to execute them.
+
+LINUX:
+[ 1 ]
+- Go in Install directory and use the script "unzip all" if present, or unzip all external dependencies in the "External" directory. You should obtain a x64 or x86 directory storing all dependencies.
+// TODO => 7z n'est pas un bon format pour zipper les fichiers (pas assez générique), changer ça en .zip ?
+
+[ 2 ]
+- Go in Install directory and then execute the script "makeLibrary.sh"
+- The "makeLibrary.sh" generate a "Generated_Linux" directory where you can find the generated Makefiles (in fact the subfolder Library directory)
+- Go to Library directory and compile. You can type "make help" to see what you can compile. Just type "make", or "make SimpleSphereDemo", or "make -jN" if you want to use several processors (N is the number)
+- All GigaVoxels header files (*h., *.inl), library files (GigaVoxels.so or GigaSpace.so) are copied in the root "Release" directory (Bin, Inc, Lib).
+- This "Release" directory is used as a SDK repository that all Tutorials and Tools use to compile.
+NOTE: a command line like "make 2>&1 | grep -E "[eE]rror|$" can help you to see only errors. Or "make SimpleSphereDemo 2>&1 | grep -E "[eE]rror|$"
+

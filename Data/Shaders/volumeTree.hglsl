@@ -1,0 +1,70 @@
+// volumeTree.hglsl
+#ifndef _VOLUMETREE_HGLSL_
+#define _VOLUMETREE_HGLSL_
+
+uniform layout(size1x32) uimageBuffer d_volTreeChildArray;
+uniform layout(size1x32) uimageBuffer d_volTreeDataArray;
+
+struct OctreeNode
+{
+	uint childAddress;
+	uint brickAddress;
+};
+
+uint unpackNodeAddress(uint address)
+{
+	return (address & 0x3FFFFFFFU);
+}
+
+uvec3 unpackBrickAddress(uint address)
+{
+	uvec3 res;
+	res.x = (address & 0x3FF00000U) >> 20U;
+	res.y = (address & 0x000FFC00U) >> 10U;
+	res.z = address & 0x000003FFU;
+
+	return res;
+}
+
+void fetchOctreeNode(out OctreeNode node, uint nodeTileAddress, uint nodeTileOffset)
+{
+	node.childAddress = imageLoad(d_volTreeChildArray, int(nodeTileAddress + nodeTileOffset)).x;
+	node.brickAddress = imageLoad(d_volTreeDataArray, int(nodeTileAddress + nodeTileOffset)).x;
+}
+
+bool nodeIsInitialized(OctreeNode node)
+{
+	return (node.childAddress != 0) || (node.brickAddress != 0);
+}
+
+bool nodeHasSubNodes(OctreeNode node)
+{
+	return (node.childAddress & 0x3FFFFFFFU) != 0;
+}
+
+bool nodeIsBrick(OctreeNode node)
+{
+	return (node.childAddress & 0x40000000U) != 0;
+}
+
+bool nodeHasBrick(OctreeNode node)
+{
+	return nodeIsBrick(node) && node.brickAddress != 0;
+}
+
+bool nodeIsTerminal(OctreeNode node)
+{
+	return (node.childAddress & 0x80000000U) != 0;
+}
+
+uint nodeGetChildAddress(OctreeNode node)
+{
+	return unpackNodeAddress(node.childAddress);
+}
+
+uvec3 nodeGetBrickAddress(OctreeNode node)
+{
+	return unpackBrickAddress(node.brickAddress);
+}
+
+#endif // !_VOLUMETREE_HGLSL_

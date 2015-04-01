@@ -1,0 +1,65 @@
+/** \page Mecanismn_TheGigaVoxelsApproach The GigaVoxels Approach
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section Overview_Section Overview
+ *
+ * This page explains the GigaVoxels approach. It is organized in the following sections :
+ *
+ * \li \ref Mecanismn_TheGigaVoxelsApproach_References_Section
+ * \li \ref Mecanismn_TheGigaVoxelsPipieline_Section
+ * \li \ref Mecanismn_Mecanismn_TheGigaVoxelsApproach_GPUProducerDetailedSequence_Section
+ *
+ * <hr>
+ *
+ * @section Mecanismn_TheGigaVoxelsApproach_References_Section References and Publications
+ *
+ * @subsection Publications
+ *
+ * The best to learn what is GigaVoxels is to read previously released publications.
+ *
+ * Details can be found on this related website : <a href="http://maverick.inria.fr/index.html">Efficient rendering of highly detailed volumetric scenes</a>
+ *
+ * @subsection Videos
+ *
+ * You can found videos in on this link : <a href="http://maverick.inria.fr/index.html">Videos</a>
+ *
+ * <hr>
+ *
+ * @section Mecanismn_TheGigaVoxelsPipieline_Section The GigaVoxels Pipeline
+ *
+ * @subsection Overview
+ *
+ * GigaVoxels is organized as a pipeline that is processed during a rendering pass.
+ *
+ * The pipeline is organized in three main passes :
+ * - the \ref subsection_Mecanismn_TheGigaVoxelsApproach_PreRenderPass,
+ * - the \ref subsection_Mecanismn_TheGigaVoxelsApproach_RenderingPass,
+ * - the \ref subsection_Mecanismn_TheGigaVoxelsApproach_PostRenderPass.
+ *
+ * @subsection subsection_Mecanismn_TheGigaVoxelsApproach_PreRenderPass Pre-Render Pass
+ *
+ * Data is reinitialized.
+ *
+ * @subsection subsection_Mecanismn_TheGigaVoxelsApproach_RenderingPass Rendering Pass
+ *
+ * This phase is divided in 2 steps :
+ * - Data Structure Traversal,
+ * - Ray Casting Rendering.
+ *
+ * @subsection subsection_Mecanismn_TheGigaVoxelsApproach_PostRenderPass Post-Render Pass
+ *
+ * All requests are handled by the cache mecanism asking for producer to provide data.
+ *
+ * <hr>
+ *
+ * @section Mecanismn_Mecanismn_TheGigaVoxelsApproach_GPUProducerDetailedSequence_Section Detailed Pipeline's Sequence Diagram of a GPU Producer
+ *
+ * Here is a screenshot of UML sequence diagram of the GigaVoxels pipeline used with a GPU producer (for instance, a procedural geometry producer).
+ *
+ * \image html UML_GigaVoxels_PipelineSequence.jpg "The GigaVoxels Pipeline"
+ * <br>
+ *
+ */
+ 

@@ -1,0 +1,190 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _SHADERLOAD_HCU_
+#define _SHADERLOAD_HCU_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// Gigavoxels
+#include <GvRenderer/GvIRenderShader.h>
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+/**
+ * ...
+ */
+__constant__ float3 cLightPosition;
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * @class ShaderLoadKernel
+ *
+ * @brief The ShaderLoadKernel struct provides...
+ *
+ * ...
+ */
+class ShaderLoadKernel : public GvRenderer::GvIRenderShader< ShaderLoadKernel >
+{
+
+	/**************************************************************************
+	 ***************************** PUBLIC SECTION *****************************
+	 **************************************************************************/
+
+public:
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**
+	 * ...
+	 *
+	 * @param materialColor ...
+	 * @param normalVec ...
+	 * @param lightVec ...
+	 * @param eyeVec ...
+	 * @param ambientTerm ...
+	 * @param diffuseTerm ...
+	 * @param specularTerm ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline float3 shadePointLight( float3 materialColor, float3 normalVec, float3 lightVec, float3 eyeVec,
+		float3 ambientTerm, float3 diffuseTerm, float3 specularTerm );
+
+	/**
+	 * ...
+	 *
+	 * @param rayStartTree ...
+	 * @param rayDirTree ...
+	 * @param tTree ...
+	 */
+	__device__
+	inline void preShadeImpl( const float3& rayStartTree, const float3& rayDirTree, float& tTree );
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void postShadeImpl();
+
+	/**
+	 * ...
+	 *
+	 * @param tTree ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline float getConeApertureImpl( const float tTree ) const;
+
+	/**
+	 * ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline float4 getColorImpl() const;
+
+	/**
+	 * ...
+	 *
+	 * @param rayPosInWorld ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline bool stopCriterionImpl( const float3& rayPosInWorld ) const;
+
+	/**
+	 * ...
+	 *
+	 * @param voxelSize ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline bool descentCriterionImpl( const float voxelSize ) const;
+
+	/**
+	 * ...
+	 *
+	 * @param brickSampler ...
+	 * @param samplePosScene ...
+	 * @param rayDir ...
+	 * @param rayStep ...
+	 * @param coneAperture ...
+	 */
+	template< typename BrickSamplerType >
+	__device__
+	inline void runImpl( const BrickSamplerType& brickSampler, const float3 samplePosScene,
+		const float3 rayDir, float& rayStep, const float coneAperture );
+
+	/**************************************************************************
+	 **************************** PROTECTED SECTION ***************************
+	 **************************************************************************/
+
+protected:
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**************************************************************************
+	 ***************************** PRIVATE SECTION ****************************
+	 **************************************************************************/
+
+private:
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/**
+	 * ...
+	 */
+	float4 _accColor;
+
+	/******************************** METHODS *********************************/
+
+};
+
+#endif // !_SHADERLOAD_HCU_

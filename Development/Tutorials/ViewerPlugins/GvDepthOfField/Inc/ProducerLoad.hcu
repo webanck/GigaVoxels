@@ -1,0 +1,412 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _PRODUCERLOAD_HCU_
+#define _PRODUCERLOAD_HCU_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+/**
+ * Maximum number of levels
+ */
+#define GPUVPLD_MAX_NUM_LEVELS 16
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+// Project
+template
+<
+	class TDataTList, class TNodeTileRes, class TBrickFullRes,
+	class TDataCachePoolKernelType, typename TGPUPoolKernelType, int TChannel
+>
+class ProducerLoadKernel_ChannelLoad;
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * @class ProducerLoadKernel
+ *
+ * @brief The ProducerLoadKernel class provides...
+ *
+ * ...
+ */
+template
+<
+	typename TDataTList,
+	typename TNodeRes, typename TBrickFullRes,
+	typename TDataCachePoolKernelType
+>
+class ProducerLoadKernel
+{
+
+	/**************************************************************************
+	 ***************************** PUBLIC SECTION *****************************
+	 **************************************************************************/
+
+public:
+
+	/****************************** INNER TYPES *******************************/
+
+	// TODO: makes dependant on voxel type
+	/**
+	 * Enumeration used to defined the brick voxel alignment
+	 */
+	enum
+	{
+		BrickVoxelAlignment = GvCore::IDivUp< TBrickFullRes::x * TBrickFullRes::y * TBrickFullRes::z, 32 >::value * 32
+	};
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/**
+	 * Max depth
+	 */
+	uint _maxDepth;
+
+	/**
+	 * Host data cache pool
+	 */
+	TDataCachePoolKernelType _cpuDataCachePool;
+
+	/**
+	 * Host nodes cache
+	 */
+	GvCore::Array3DKernelLinear< uint > _cpuNodesCache;
+
+	/******************************** METHODS *********************************/
+
+	/**
+	 *  Init.
+	 *
+	 * @param pMaxdepth ...
+	 * @param pNodesCache ...
+	 * @param pDataCachePool ...
+	 */
+	void init( uint pMaxdepth, const GvCore::Array3DKernelLinear< uint >& pNodesCache, const TDataCachePoolKernelType& pDataCachePool )
+	{
+		_maxDepth			= pMaxdepth;
+		_cpuNodesCache		= pNodesCache;
+		_cpuDataCachePool	= pDataCachePool;
+	}
+
+	/**
+	 * Produce data on device.
+	 *
+	 * Producing data mecanism works element by element (node tile or brick) depending on the channel.
+	 *
+	 * In the function, user has to produce data for a node tile or a brick of voxels :
+	 * - for a node tile, user has to defined regions (i.e nodes) where lies data, constant values,
+	 * etc...
+	 * - for a brick, user has to produce data (i.e voxels) at for each of the channels
+	 * user had previously defined (color, normal, density, etc...)
+	 *
+	 * @param pNodePool The device side pool (nodes or bricks)
+	 * @param pRequestID The current processed element coming from the data requests list (a node tile or a brick)
+	 * @param pProcessID Index of one of the elements inside a node tile or a voxel bricks
+	 * @param pNewElemAddress The address at which to write the produced data in the pool
+	 * @param pParentLocInfo The localization info used to locate an element in the pool
+	 *
+	 * @return A feedback value that the user can return.
+	 * @todo Verify the action/need of the return value (see the Page Table Kernel).
+	 */
+	template< typename TGPUPoolKernelType >
+	__device__
+	inline uint produceData( TGPUPoolKernelType& pNodePool, uint pRequestID, uint pProcessID,
+		uint3 pNewElemAddress, const GvCore::GvLocalizationInfo& pParentLocInfo, Loki::Int2Type< 0 > )
+	{
+		uint3 parentLocCode = pParentLocInfo.locCode.get();
+		uint parentLocDepth = pParentLocInfo.locDepth.get();
+
+		if ( pProcessID < TNodeRes::getNumElements() )
+		{
+			GvStructure::OctreeNode newnode;
+
+			newnode.childAddress = _cpuNodesCache.get( pRequestID * TNodeRes::getNumElements() + pProcessID );
+			newnode.brickAddress = 0;
+
+			// Write node info into the node pool
+			pNodePool.getChannel( Loki::Int2Type< 0 >() ).set( pNewElemAddress.x + pProcessID, newnode.childAddress );
+			pNodePool.getChannel( Loki::Int2Type< 1 >() ).set( pNewElemAddress.x + pProcessID, newnode.brickAddress );
+		}
+
+		return (0);
+	}
+
+	/**
+	 * Produce data on device.
+	 *
+	 * Producing data mecanism works element by element (node tile or brick) depending on the channel.
+	 *
+	 * In the function, user has to produce data for a node tile or a brick of voxels :
+	 * - for a node tile, user has to defined regions (i.e nodes) where lies data, constant values,
+	 * etc...
+	 * - for a brick, user has to produce data (i.e voxels) at for each of the channels
+	 * user had previously defined (color, normal, density, etc...)
+	 *
+	 * @param pDataPool The device side pool (nodes or bricks)
+	 * @param pRequestID The current processed element coming from the data requests list (a node tile or a brick)
+	 * @param pProcessID Index of one of the elements inside a node tile or a voxel bricks
+	 * @param pNewElemAddress The address at which to write the produced data in the pool
+	 * @param pParentLocInfo The localization info used to locate an element in the pool
+	 *
+	 * @return A feedback value that the user can return.
+	 * @todo Verify the action/need of the return value (see the Page Table Kernel).
+	 */
+	template< typename TGPUPoolKernelType >
+	__device__
+	inline uint produceData( TGPUPoolKernelType& pDataPool, uint pRequestID, uint pProcessID,
+		uint3 pNewElemAddress, const GvCore::GvLocalizationInfo& pParentLocInfo, Loki::Int2Type< 1 > )
+	{
+		//parentLocDepth++; //Shift needed, to be corrected
+		bool nonNull = ProducerLoadKernel_ChannelLoad
+							< TDataTList, TNodeRes, TBrickFullRes, TDataCachePoolKernelType, TGPUPoolKernelType, GvCore::DataNumChannels< TDataTList >::value - 1 >
+							::produceDataChannel( *this, pDataPool, pNewElemAddress, pParentLocInfo, pRequestID, pProcessID );
+
+		return 0;
+		//if (nonNull)
+		//	return 0;
+		//else
+		//	return 2;
+	}
+
+	/**************************************************************************
+	**************************** PROTECTED SECTION ***************************
+	**************************************************************************/
+
+protected:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**************************************************************************
+	***************************** PRIVATE SECTION ****************************
+	**************************************************************************/
+
+private:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+};
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+ 
+/** 
+ * @class ProducerLoadKernel_ChannelLoad
+ *
+ * @brief The ProducerLoadKernel_ChannelLoad class provides...
+ *
+ * ...
+ */
+template
+<
+	class TDataTList, class TNodeTileRes, class TBrickFullRes,
+	class TDataCachePoolKernelType, typename TGPUPoolKernelType, int TChannel
+>
+class ProducerLoadKernel_ChannelLoad
+{
+
+	/**************************************************************************
+	 ***************************** PUBLIC SECTION *****************************
+	 **************************************************************************/
+
+public:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**
+	 * ...
+	 *
+	 * @param pGpuVPLK ...
+	 * @param pDataPool ...
+	 * @param pElemAddress ...
+	 * @param pParentLocInfo ...
+	 * @param pRequestID ...
+	 * @param pProcessID ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	inline static bool produceDataChannel( ProducerLoadKernel< TDataTList, TNodeTileRes, TBrickFullRes, TDataCachePoolKernelType >& pGpuVPLK,
+										TGPUPoolKernelType& pDataPool, uint3 pElemAddress, const GvCore::GvLocalizationInfo& pParentLocInfo, uint pRequestID, uint pProcessID )
+	{
+		uint blockIndex = pRequestID;
+
+		uint brickNumVoxels = ProducerLoadKernel< TDataTList, TNodeTileRes, TBrickFullRes, TDataCachePoolKernelType >::BrickVoxelAlignment;
+		uint blockStartAddress = blockIndex * ( brickNumVoxels );
+
+		uint blockNumThreads = blockDim.x;
+
+		uint decal;
+
+		for ( decal = 0; decal < brickNumVoxels; decal += blockNumThreads )
+		{
+			uint locDecal = decal + pProcessID;
+
+			if ( locDecal < brickNumVoxels )
+			{
+				typedef typename GvCore::DataChannelType< TDataTList, TChannel >::Result VoxelType;
+				VoxelType vox;
+
+				uint locDecalOffset = locDecal;
+				vox = pGpuVPLK._cpuDataCachePool.getChannel( Loki::Int2Type< TChannel >() ).get( blockStartAddress + locDecalOffset );
+
+				uint3 voxelOffset;
+				voxelOffset.x = locDecal % TBrickFullRes::x;
+				voxelOffset.y = ( locDecal / TBrickFullRes::x ) % TBrickFullRes::y;
+				voxelOffset.z = ( locDecal / ( TBrickFullRes::x * TBrickFullRes::y ) );
+
+				uint3 destAddress = pElemAddress + make_uint3( voxelOffset );
+				pDataPool.setValue< TChannel >( destAddress, vox );
+			}
+		}
+
+		return ProducerLoadKernel_ChannelLoad< TDataTList, TNodeTileRes, TBrickFullRes, TDataCachePoolKernelType, TGPUPoolKernelType, TChannel - 1 >
+											::produceDataChannel( pGpuVPLK, pDataPool, pElemAddress, pParentLocInfo, pRequestID, pProcessID );
+	}
+
+	/**************************************************************************
+	**************************** PROTECTED SECTION ***************************
+	**************************************************************************/
+
+protected:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**************************************************************************
+	***************************** PRIVATE SECTION ****************************
+	**************************************************************************/
+
+private:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+};
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * Specialization of the class ProducerLoadKernel_ChannelLoad.
+ */
+template
+<
+	class TDataTList,
+	class TNodeTileRes, class TBrickFullRes,
+	class TDataCachePoolKernelType, typename TGPUPoolKernelType
+>
+class ProducerLoadKernel_ChannelLoad< TDataTList, TNodeTileRes, TBrickFullRes, TDataCachePoolKernelType, TGPUPoolKernelType, -1 >
+{
+
+public:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**
+	 * ...
+	 *
+	 * @param pGpuVPLK ...
+	 * @param pDataPool ...
+	 * @param pElemAddress ...
+	 * @param pParentLocInfo ...
+	 * @param pRequestID ...
+	 * @param pProcessID ...
+	 *
+	 * @return ...
+	 */
+	__device__
+	static inline bool produceDataChannel( ProducerLoadKernel< TDataTList, TNodeTileRes, TBrickFullRes, TDataCachePoolKernelType >& pGpuVPLK,
+										TGPUPoolKernelType& pDataPool, uint3 pElemAddress, const GvCore::GvLocalizationInfo& pParentLocInfo, uint pRequestID, uint pProcessID )
+	{
+		return false;
+	}
+
+	/**************************************************************************
+	 **************************** PROTECTED SECTION ***************************
+	 **************************************************************************/
+
+protected:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**************************************************************************
+	***************************** PRIVATE SECTION ****************************
+	**************************************************************************/
+
+private:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+};
+
+#endif // !_PRODUCERLOAD_HCU_

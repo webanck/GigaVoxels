@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<Qtfe>
+  <Function>
+    <point x="0" y="1"/>
+    <point x="0.0843882" y="0.28"/>
+    <point x="0.189873" y="0.626667"/>
+    <point x="0.265823" y="0.693333"/>
+    <point x="0.556962" y="0.36"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Function>
+    <point x="0" y="0.546667"/>
+    <point x="0.206751" y="0.706667"/>
+    <point x="0.451477" y="0.626667"/>
+    <point x="0.679325" y="0.8"/>
+    <point x="0.729958" y="0.453333"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Function>
+    <point x="0" y="1"/>
+    <point x="0.206751" y="0.533333"/>
+    <point x="0.518987" y="0.293333"/>
+    <point x="0.64135" y="0.933333"/>
+    <point x="0.843882" y="0.64"/>
+    <point x="1" y="0.00784314"/>
+  </Function>
+  <Function>
+    <point x="0" y="1"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Output G="1" R="0" A="3" B="2"/>
+</Qtfe>

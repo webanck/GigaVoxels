@@ -1,0 +1,14 @@
+<RCC>
+  <qresource prefix="/icons">
+    <file>Icons/Save.png</file>
+    <file>Icons/FileOpen.png</file>
+    <file>Icons/Exit.png</file>
+    <file>Icons/Help.png</file>
+    <file>Icons/Light.png</file>
+    <file>Icons/GigaVoxelsLogo.png</file>
+    <file>Icons/GigaVoxelsLogo_div2.png</file>
+    <file>Icons/GigaVoxelsLogo_div4.png</file>
+    <file>Icons/GigaVoxelsLogo_div8.png</file>
+    <file>Icons/Colors.png</file>
+  </qresource>
+</RCC>

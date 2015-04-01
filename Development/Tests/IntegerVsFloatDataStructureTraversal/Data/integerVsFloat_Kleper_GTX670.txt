@@ -1,0 +1,38 @@
+--------------------------------- Float versus Integer - Benchmark --------------------------------- 
+
+GPU : Kepler => GeForce GTX 670 (2Go memory)
+- compute capability : 3.0
+- nb SM : 7 (streaming multi-processors)
+
+
+------------------------------------------------------------------------------------------------------------
+
+                                FLOAT                                    INTEGER
+
+------------------------------------------------------------------------------------------------------------
+ 
+Simple Sphere
+
+window 512x512
+ - .qglviewer1.xml    180-213 fps / 5.55-4.69 ms	        172-180 fps / 5.81-5.55 ms
+ - .qglviewer2.xml    177-194 fps / 5.64-5.15 ms	            165 fps /      6.06 ms
+
+full window
+ - .qglviewer1.xml    56-59 fps / 17.85-16.94 ms	          46-47 fps / 21.73-21.27 ms
+ - .qglviewer2.xml    52-53 fps / 19.23-18.86 ms	             40 fps /          25 ms
+
+------------------------------------------------------------------------------------------------------------
+
+Dynamic Load
+
+window 512x512
+ - .qglviewer1.xml    116-122 fps / 8.62-8.19 ms	          75-94 fps / 13.33-10.63 ms
+	=> 2nd test       127 fps / 7.87 ms		     	     93 fps / 10.75 ms
+ - .qglviewer2.xml    104-112 fps / 9.61-8.92 ms	          68-83 fps / 14.70-12.04 ms
+
+full window
+ - .qglviewer1.xml    37 fps / 27.02 ms	                          23-24 fps / 43.47-41.66 ms
+ - .qglviewer2.xml    32-33 fps / 31.25-30.30 ms	             20 fps /          50 ms
+
+
+                         

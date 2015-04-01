@@ -1,0 +1,85 @@
+/** \page Mecanismn_IO_Streaming I/O Streaming and File Formats
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section Overview_Section Overview
+ *
+ * This page explains the I/O streaming mecanismn and file formats handled by the GigaVoxels library. It is organized in the following sections :
+ *
+ * \li \ref FileFormatsMecanismn_Section
+ * \li \ref FileFormatsOnDiskOrganization_Section
+ * \li \ref FileFormatsTools_Section
+ *
+ * <hr>
+ *
+ * @section FileFormatsMecanismn_Section I/O Streaming Mecanismn
+ *
+ * Currently, there is no internal file formats handled by the library.
+ * Users have to write their own HOST producer (i.e. on CPU), by :
+ - first, deriving from the GvCore::GvIProvider class,
+ - then handle the common GvCore::GvIProvider::produceData() method.
+ *
+ * During the final <strong>Update Phase</strong> step of the GigaVoxels Pipeline,
+ * the Cache Mecanism asks the producer to provide its data by calling the GvCore::GvIProvider::produceData().
+ * The producer receives useful information (nodes adreses, localization information, etc...) needed to load
+ * corresponding data file on disk.
+ *
+ * Examples can be found in the tutorials like, for instance, the @ref Tutorial_Dynamic_Load.
+ *
+ * \image html fileFormats_02.png "Example : the Dynamic Load tutorial uses I/O streaming by loading on disk data files on demand"
+ *
+ * <br>
+ * <hr>
+ *
+ * @section FileFormatsOnDiskOrganization_Section File Formats and Organization on disk
+ *
+ * @subsection Description
+ *
+ * In this section, we describe how data are organized on disk in the @ref Tutorial_Dynamic_Load. This is the common way of doing in all I/O streaming tutorials.
+ *
+ * Files are named as follows : <strong>filename_BRxxx_Bxxx_Lxxx_Cxxx_type.extension</strong>,
+ *
+ * where :
+ * - <strong>filename</strong> is the file name,
+ * - <strong>BRxxx</strong> : "BR" stands for "brick", "xxx" is the size in each dimension,
+ * - <strong>Bxxx</strong> : "B" stands for "border", "xxx" is the size of the bordel,
+ * - <strong>Lxxx</strong> : "L" stands for "level", "xxx" is the index of the level,
+ * - <strong>Cxxx</strong> : "C" stands for "channel", "xxx" is the index of the channel,
+ * - <strong>type</strong> : this is the type of the channel (i.e. uchar4, float, etc...)
+ * - <strong>extension</strong> : this is the file extension (see below for details)
+ 
+  * Files are organized in two groups :
+ * - node tiles information : file extension is <strong>.nodes</strong>,
+ * - and bricks of voxels : file extension is <strong>.bricks</strong>.
+ *
+ * @subsection Example
+ *
+ * The following screenshot shows the files associated to the 3D dragon model loaded in the @ref Tutorial_Dynamic_Load.
+ *
+ * \image html fileFormats_01.png "Example of data files"
+ *
+ * In this example, files are named as follow :
+ * - <strong>fux</strong> : filename,
+ * - <strong>BR8</strong> : each brick holds 8 voxels in each dimension, denoted as [8x8x8],
+ * - <strong>B1</strong> : each brick has only one border on each side, so the real brick size is in fact [10x10x10],
+ * - <strong>Lxxx</strong> : there are 7 levels from the 0 coarser one to the more detailed level 6,
+ * - <strong>C0</strong> : there is only one channel named C0,
+ * - <strong>uchar4</strong> : the type of the the channel is a 4 dimensions unsigned char.
+ *
+ * So,
+ * - <strong>fux_BR8_B1_L5.nodes</strong> is the file holding nodes information for level 5,
+ * - <strong>fux_BR8_B1_L5_C0_uchar4.bricks</strong> is the file holding bricks information for level 5.
+ *
+ * <hr>
+ *
+ * @section FileFormatsTools_Section Tools
+ *
+ * @subsection Voxelizer
+ *
+ * A simple voxelizer is provided to generate data from 3D models during pre-process stages. For details, see the @ref Tool_GvVoxelizer tool.
+ *
+ * \image html tools_voxelizer_01.png "Voxelizer"
+ * <br>
+ *
+ */

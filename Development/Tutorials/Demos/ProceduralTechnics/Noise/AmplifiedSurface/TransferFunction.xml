@@ -1,0 +1,11 @@
+<!DOCTYPE TransferFunction>
+<ControlPoints>
+  <point color_r="0" color_a="0" color_b="0" paletteCoords_x="0" dens="0" paletteCoords_y="1" color_g="0" />
+  <point color_r="0" color_a="0" color_b="0" paletteCoords_x="0" dens="0" paletteCoords_y="1" color_g="0" />
+  <point color_r="0.00784314" color_a="0.06" color_b="0.980392" paletteCoords_x="0.636161" dens="0.298828" paletteCoords_y="0.533333" color_g="0.262745" />
+  <point color_r="0.8" color_a="0.07" color_b="0.00392157" paletteCoords_x="0.106029" dens="0.603516" paletteCoords_y="0.622223" color_g="0.486275" />
+  <point color_r="0.996078" color_a="0.78" color_b="0.211765" paletteCoords_x="0.0781257" dens="0.865234" paletteCoords_y="0.422223" color_g="0.541176" />
+  <point color_r="0.584314" color_a="0.98" color_b="0.00784314" paletteCoords_x="0.100447" dens="1" paletteCoords_y="0.733334" color_g="0.32549" />
+  <point color_r="1" color_a="1" color_b="1" paletteCoords_x="0" dens="1" paletteCoords_y="1" color_g="1" />
+  <point color_r="1" color_a="1" color_b="1" paletteCoords_x="0" dens="1" paletteCoords_y="1" color_g="1" />
+</ControlPoints>

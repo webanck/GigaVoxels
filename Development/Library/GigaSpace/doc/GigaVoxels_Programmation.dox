@@ -1,0 +1,845 @@
+/** \page Library_HowToProgram Programmation
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section Library_HowToProgram_Introduction_Section Introduction
+ *
+ * This page explains the basics to program the GigaVoxels library. It is organized in the following sections :
+ *
+ * \li \ref Library_HowToProgram_Overview_Section
+ * \li \ref Library_HowToProgram_Modules_Section
+ * \li \subpage Library_HowToProgram_Technologies_Page
+ * \li \subpage Library_HowToProgram_Prerequisites_Page
+ * \li \subpage Library_HowToProgram_TheBasics_Page
+ *
+ * The best way to learn how to program is to look at and study the different provided @ref Tutorials.
+ *
+ * <hr>
+ *
+ * @section Library_HowToProgram_Overview_Section Overview
+ *
+ * Below is a screenshot of the main UML diagram of the library. It shows :
+ * - library modules,
+ * - external dependencies,
+ * - tools,
+ * - tutorials.
+ *
+ * \image html library_UML_Main.png "The GigaVoxels main UML diagram"
+ *
+ * <br>
+ * <hr>
+ *
+ * @section Library_HowToProgram_Modules_Section List of Modules
+ *
+ * @subsection subsection_Core_Module Core Module
+ *
+ * Core module.
+ * \image html library_CoreModule.png "The GigaVoxels Core Module UML diagram"
+ *
+ * @subsection subsection_Structure_Module Structure Module
+ * 
+ * Structure module.
+ * \image html library_DataStructureModule.png "The GigaVoxels Data Structure Module UML diagram"
+ *
+ * @subsection subsection_Cache_Module Cache Module
+ * 
+ * Cache module.
+ * \image html library_CacheModule.png "The GigaVoxels Cache Module UML diagram"
+ *
+ * @subsection subsection_Rendering_Module Rendering Module
+ * 
+ * Rendering module.
+ * \image html library_RenderingModule.png "The GigaVoxels Rendering Module UML diagram"
+ *
+ * @subsection subsection_PerformanceMonitoring_Module Performance Monitoring Module
+ * 
+ * Performance Monitoring module.
+ * \image html library_PerformanceMonitoringModule.png "The GigaVoxels Performance Monitoring Module UML diagram"
+ *
+ * @subsection subsection_Utils_Module Utils Module
+ * 
+ * Utils module.
+ * \image html library_UtilsModule.png "The GigaVoxels Utils Module UML diagram"
+ *
+ * <br>
+ *
+ */
+ 
+ 
+/** @page Library_HowToProgram_Technologies_Page Technologies
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section section_HowToProgram_Technologies_Overview Overview
+ *
+ * - C++
+ * - Loki
+ *
+ * - GPU Computing
+ * - CUDA
+ * - Thrust
+ * - CUDPP
+ * - Parallel NSight
+ *
+ * <hr>
+ *
+ * @section section_HowToProgram_Technologies_GPUTemplateProgramming GPU template metaprogrammation
+ *
+ * Design choice has been made to not use polymorphism on GPU. This is replace by template programming.
+ *
+ */
+ 
+/** @page Library_HowToProgram_Prerequisites_Page Prerequisites
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section section_Library_HowToProgram_Prerequisites_CUDA CUDA
+ *
+ * GigaVoxels uses GPU Computing through the NVidia CUDA technology.
+ *
+ * Particularly, the brick pool (i.e. voxels) is implemented as CUDA Arrays in order to be able
+ * to use hardware texture interpolation, 3D addressing, as well as a 3D-coherent cache.
+ * 
+ * More precisely, CUDA arrays are bound to textures and surfaces because, internally, GigaVoxels :
+ * - reads from textures,
+ * - and writes in surfaces.
+ *
+ * @subsection Prerequisites
+ * Use of surfaces implies a GPU card with a leat <strong>Compute Capability 2.0</strong>
+ * <br>Writing to surfaces implies at least <strong>CUDA version 4.1</strong>
+ *
+ */
+ 
+ 
+/** @page Library_HowToProgram_TheBasics_Page Programmation : The Basics
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section section_Library_HowToProgram_TheBasics_Introduction Introduction
+ *
+ * In this section, we describe the basics of the Gigavoxels programmation. For the sake of simplicity, we only study the writing of a pure GPU producer with helper classes provided by the API.
+ *
+ * This section will describe :
+ * - the GigaVoxels key features
+ * - the GigaVoxels data production management
+ * - the main GigaVoxels pipeline class definition
+ * - writing a custom GPU Producer
+ * - writing a custom GPU shader
+ * - simplify code with the API helper classes and functions
+ *
+ * <hr>
+ *
+ * @section section_Library_HowToProgram_TheBasics_GigaVoxelsKeyFeatures GigaVoxels Key Features
+ *
+ * The key elements of GigaVoxels are :
+ *
+ * - Tree Data Management (space partitioning) to store and organize data (octree or generalized N3-tree, and soon BVH or kd-tree)
+ * - Cache System on GPU : LRU mechanismn (least recently used) to get temporal coherency
+ * - Data Production Management : on host, GPU, or hybrid mode. The goal is to produce data kept in cache on GPU
+ * - Visit algorithm to traverse data (loaded in cache) as could be done for rendering
+ * - Renderer (hierarchical volume ray-casting, cone tracing, emission of requests, brick marching)
+ *
+ * As shown on the following image, GigaVoxels is made of a unified data structure (geometry + texture) that holds :
+ *
+ * - a space partitioning structure of nodes used for empty space compaction (an octree)
+ * - user data stored as brick of voxels in a multi-resolution scheme
+ *
+ * \image html dataStructure.png
+ *
+ * Each node contains an associated brick of voxels inside :
+ *
+ * \image html brickOfVoxels.png
+ *
+ * During the rendering phase, the GigaVoxels renderer casts rays and traverses the spatial structure to sample data along the ray (ray-marching algorithm).
+ *
+ * When a node is traversed :
+ *
+ * - if associated brick of voxels has already been produced, it is renderered
+ * - if not, a request of production is emitted (node subdivision to refine model and add details or bricks of voxels production)
+ *
+ * Producers are then in charge of the production of data in each requested nodes.
+ *
+ * <hr>
+ *
+ * @section section_Library_HowToProgram_TheBasics_DataProductionManagement Data Production Management
+ *
+ * The Data Production Management is responsible for the production of nodes first and then bricks :
+ *
+ * - process node requests (first CPU, then GPU stage)
+ * - process bricks requests (first CPU, then GPU stage)
+ *
+ * This is where users have to define their own CPU and GPU producers :
+ *
+ * \image html dataProductionManagement.png
+ *
+ * @subsection subsection_Library_HowToProgram_TheBasics_NodeSubdivision Node subdivision
+ *
+ * A node subdivision request is raised when user need more resolution, i.e. a data refinement. For this, GigaVoxels launches a CUDA kernel to subdivide all requested nodes. For each node, the goal is to say what will lies in its children (at a finer level of resolution). USER has to define what we call an ORACLE, i.e. a utility function used to predict what lies in children nodes.
+ *
+ * - KERNEL : 1 bloc per node and 1 thread/child_node
+ * -- Each node has to say what’s inside each of its child
+ * - INPUT : localization info of current node (LOD depth and spatial index pos)
+ * - INPUT : address in “node cache” where to write new child nodes
+ * -  Test if it is in a sphere (analytically)
+ * - Write nodes in cache
+ *
+ * \image html nodeSubdivision.png
+ *
+ * @subsection subsection_Library_HowToProgram_TheBasics_BrickProduction Brick production
+ *
+ * Beware : GigaVoxels requires that voxels are stored on node centers. Therefore, during the brick production, think about this when you test spacial requests.
+ *
+ * Comparison between bricks with voxels on node centers (a) and voxels on node corners (b). We
+ * show two bricks(blue an green) and different levels of the tree, brick voxels arerepresented by colored circles.
+ *
+ * \image html voxelsPosition.png
+ *
+ * @subsection subsection_Library_HowToProgram_TheBasics_RenderingStage Rendering Stage
+ *
+ * Here is the sequence diagram of the Renderering Stage. In green, all methods of CUSTOM Shader are highligthed to help figuring out how to interact with it.
+ *
+ * \image html rendererSequence.png
+ *
+ * <br>
+ * <hr>
+ * 
+ * @section section_Library_HowToProgram_TheBasics_DataProductionManagement Defining a GigaVoxels Pipeline
+ *
+ * - Basic approach,
+ * - Advanced approach.
+ *
+ * In the basic approach, the library gives users two main entry points :
+ * - the <strong>Producer</strong> to customize the way of providing data,
+ * - and the <strong>Shader</strong> to customize the way of shading data.
+ *
+ * Users have to define a <strong>GigaVoxels Pipeline</strong> thats consists in five elements :
+ * - a <strong>data structure</strong>,
+ * - a <strong>producer</strong>,
+ * - a <strong>cache</strong>,
+ * - a <strong>shader</strong>,
+ * - and a <strong>renderer</strong>.
+ *
+ * @code
+ *
+ * // ---- [ 1 ] ---- GigaVoxels classes forward declaration
+ *
+ * namespace GvCore
+ * {
+ *     template< uint r > struct StaticRes1D;
+ * }
+ *
+ * namespace GvStructure
+ * {
+ *     template< class DataTList, class NodeTileRes, class BrickRes, uint BorderSize > struct GvVolumeTree;
+ *
+ *     template< typename VolumeTreeType, typename ProducerType, typename NodeTileRes, typename BrickFullRes > class GvVolumeTreeCache;
+ * }
+ *
+ * namespace GvRenderer
+ * {
+ *     template< typename VolumeTreeType, typename VolumeTreeCacheType, typename ProducerType, typename SampleShader > class VolumeTreeRendererCUDA;
+ * }
+ *
+ * // ---- [ 2 ] ---- USER custom classes forward declaration
+ *
+ * // Producer
+ * template< typename NodeRes, typename BrickRes, uint BorderSize, typename VolumeTreeType > class CustomProducer;
+ *
+ * // Shader
+ * class CustomShader;
+ *
+ * // ---- [ 3 ] ---- USER data structure configuration
+ *
+ * // Defines the type list representing the content of one voxel
+ * typedef Loki::TL::MakeTypelist< uchar4, half4 >::Result DataType;
+ *
+ * // Defines the size of a node tile
+ * typedef GvCore::StaticRes1D< 2 > NodeRes;
+ *
+ * // Defines the size of a brick
+ * typedef GvCore::StaticRes1D< 8 > BrickRes;
+ *
+ * // Defines the size of the border around a brick
+ * enum { BrickBorderSize = 1 };
+ *
+ * // Defines the total size of a brick
+ * typedef GvCore::StaticRes1D< 8 + 2 * BrickBorderSize > RealBrickRes;
+ *
+ * // ---- [ 4 ] ---- USER pipeline configuration
+ *
+ * // Defines the type of structure we want to use.
+ * typedef GvStructure::GvVolumeTree< DataType, NodeRes, BrickRes, BrickBorderSize > VolumeTreeType;
+ *
+ * // Defines the type of the producer
+ * typedef CustomProducer< NodeRes, BrickRes, BrickBorderSize, VolumeTreeType > ProducerType;
+ *
+ * // Defines the type of the cache we want to use.
+ * typedef GvStructure::GvVolumeTreeCache< VolumeTreeType, ProducerType, NodeRes, RealBrickRes > VolumeTreeCacheType;
+ *
+ * // Defines the type of the shader
+ * typedef CustomShader ShaderType;
+ *
+ * // Defines the type of the renderer we want to use.
+ * typedef GvRenderer::VolumeTreeRendererCUDA< VolumeTreeType, VolumeTreeCacheType, ProducerType, ShaderType > VolumeTreeRendererType;
+ * 
+ * // ---- [ 5 ] ---- USER custom pipeline definition
+ *
+ * class SampleCore
+ * {
+ *
+ * private:
+ *
+ *     DataStructureType* _dataStructure;
+ *
+ *     CacheType* _cache;
+ *
+ *     RendererType* _renderer;
+ *
+ *     ProducerType* _producer;
+ *
+ * };
+ *
+ * @endcode
+ *
+ * <br>
+ * <hr>
+ *
+ * @section section_Library_HowToProgram_TheBasics_ProducerWriting Writing a GPU Producer
+ *
+ * @subsection section_Library_HowToProgram_TheBasics_ProducerWriting_Overview Overview
+ *
+ * To write a producer, users have to :
+ * - first, deriving from the GvCore::GvIProvider class,
+ * - then handle the common GvCore::GvIProvider::produceData() method.
+ *
+ * During the final <strong>Update Phase</strong> step of the GigaVoxels Pipeline,
+ * the Cache Mecanism asks the producer to provide its data by calling the GvCore::GvIProvider::produceData().
+ * The producer receives useful information (nodes addresses, localization information, etc...) needed to provide data
+ * either by loading it from disk, or generates it procedurally on device (i.e GPU).
+ *
+ * @subsection section_Library_HowToProgram_TheBasics_ProducerWriting_Definition Class Definition
+ *
+ * User must provide two types of producers :
+ * - one on HOST (i.e. CPU),
+ * - one on DEVICE (i.e. GPU).
+ *
+ * At minimum, to create a HOST provider, user must derive from GvCore::GvIProvider class two times.
+ * One derivation for each pool, i.e. :
+ * - the node pool,
+ * - and the brick pool.
+ *
+ * In GigaVoxels, pool indexes are defined as follow :
+ * - index 0 stands for the node pool (node tiles),
+ * - index 1 stands for the brick pool (voxels).
+ *
+ * @code
+ *
+ * class CustomProducer
+ * :    public GvCore::GvIProvider< 0, CustomProducer >
+ * ,    public GvCore::GvIProvider< 1, CustomProducer >
+ * {
+ *
+ * public:
+ *
+ *    // Implement the produceData() method for the channel 0 (nodes)
+ *    template< typename ElementRes, typename GPUPoolType, typename PageTableType >
+ *    inline void produceData( uint pNumElems,
+ *                             thrust::device_vector< uint >* pNodesAddressCompactList,
+ *                             thrust::device_vector< uint >* pElemAddressCompactList,
+ *                             GPUPoolType& pGpuPool,
+ *                             PageTableType pPageTable, Loki::Int2Type< 0 > );
+ *	
+ *    // Implement the produceData() method for the channel 1 (bricks)
+ *    template< typename ElementRes, typename GPUPoolType, typename PageTableType >
+ *    inline void produceData( uint pNumElems,
+ *                             thrust::device_vector< uint >* pNodesAddressCompactList,
+ *                             thrust::device_vector< uint >* pElemAddressCompactList,
+ *                             GPUPoolType& pGpuPool,
+ *                             PageTableType pPageTable, Loki::Int2Type< 1 > );
+ *
+ * private:
+ *
+ *     // Cache helper
+ *     GvCache::GvCacheHelper _cacheHelper;
+ *
+ *     // Kernel producer
+ *     CustomProducerKernel _kernelProducer;
+ * };
+ *
+ * @endcode
+ *
+ * The Loki library provides the Loki::Int2Type<> template structure that converts each integral constant into a unique type.
+ *
+ * @code
+ * template< int v >
+ * struct Int2Type
+ * {
+ *     enum { value = v };
+ * };
+ * @endcode
+ *
+ * This is used to specialized the GvCore::GvIProvider::produceData() method, based on the pool indexes.
+ *
+ * At minimum, to create a DEVICE provider, users don't have to herit from the GvCore::GvIProviderKernel class,
+ * but must write its GvCore::GvIProviderKernel::produceData() method. As for the HOST, one method for each pool.
+ *
+ * @code
+ *
+ * class CustomProducerKernel
+ * {
+ *
+ * public:
+ *
+ *     // Implement the produceData() method for the channel 0 (nodes)
+ *     template< typename TGPUPoolKernelType >
+ *     __device__
+ *     inline uint produceData( TGPUPoolKernelType& pGpuPool,
+ *                              uint pRequestID,
+ *                              uint pProcessID,
+ *                              uint3 pNewElemAddress,
+ *                              const GvLocalizationInfo& pParentLocInfo,
+ *                              Loki::Int2Type< 0 > );
+ *
+ *     // Implement the produceData() method for the channel 1 (bricks)
+ *     template< typename TGPUPoolKernelType >
+ *     __device__
+ *     inline uint produceData( TGPUPoolKernelType& pGpuPool,
+ *                              uint pRequestID,
+ *                              uint pProcessID,
+ *                              uint3 pNewElemAddress,
+ *                              const GvLocalizationInfo& pParentLocInfo,
+ *                              Loki::Int2Type< 1 > );
+ *
+ * };
+ *
+ * @endcode
+ *
+ * @subsection section_Library_HowToProgram_TheBasics_ProducerWriting_Implementation Class Implementation
+ *
+ * Now that users have defined their providers, they have to implement them.
+ *
+ * Here is the HOST provider implementation for the node pool (index is 0).
+ *
+ * @code
+ *
+ * template< typename TElementRes, typename TGPUPoolType, typename TPageTableType >
+ * inline void CustomProducer::produceData( uint pNumElems,
+ *                                          thrust::device_vector< uint >* pNodesAddressCompactList,
+ *                                          thrust::device_vector< uint >* pElemAddressCompactList,
+ *                                          TGPUPoolType pGpuPool,
+ *                                          TPageTableType pPageTable,
+ *                                          Loki::Int2Type< 0 > )
+ * {
+ *
+ *     // Here, we are dealing with a pure device (GPU) producer,
+ *     // that's why the host (CPU) producer only defines its associated device producer,
+ *     // then pass parameters to the helper object _cacheHelper,
+ *     // whose role is to call the device producer.
+ *
+ *     // Initialize GvCore::GvIProviderKernel with the user DEVICE producer
+ *     GvCore::GvIProviderKernel< 0, CustomProducerKernel > kernelProvider( _kernelProducer );
+ *
+ *     // Define a 1D kernel block size.
+ *     //
+ *     // This defines how we will access data in the producer kernel,
+ *     // where each node will be produced separatly in parallel.
+ *     //
+ *     // Generally, for nodes production, we use a 1D kernel
+ *     // because we have to produce 8 children for an octree data structure.
+ *     // (for details, see below for the device producer)
+ *     dim3 blockSize( 32, 1, 1 );
+ *
+ *     // Retrieve updated addresses from the "node cache manager"
+ *     uint* nodesAddressList = thrust::raw_pointer_cast( &(*pNodesAddressCompactList)[ 0 ] );
+ *     uint* elemAddressList = thrust::raw_pointer_cast( &(*pElemAddressCompactList)[ 0 ] );
+ *
+ *     // Call the cache helper to write into the GPU cache
+ *     _cacheHelper.genericWriteIntoCache< TElementRes >( pNumElems,
+ *                                                        nodesAddressList,
+ *                                                        elemAddressList,
+ *                                                        pGpuPool,
+ *                                                        kernelProvider,
+ *                                                        pPageTable,
+ *                                                        blockSize );
+ * }
+ *
+ * @endcode
+ *
+ * For is the HOST provider implementation of the brick pool (index is 1), code is the same except for the pool index.
+ * Furthermore, the kernel block size is modified to be 2D.
+ *
+ * @code
+ *
+ * template< typename TElementRes, typename TGPUPoolType, typename TPageTableType >
+ * inline void CustomProducer::produceData( uint pNumElems,
+ *                                          thrust::device_vector< uint >* pNodesAddressCompactList,
+ *                                          thrust::device_vector< uint >* pElemAddressCompactList,
+ *                                          TGPUPoolType pGpuPool,
+ *                                          TPageTableType pPageTable,
+ *                                          Loki::Int2Type< 1 > )
+ * {
+ *     // Here, we are dealing with a pure device (GPU) producer,
+ *     // that's why the host (CPU) producer only defines its associated device producer,
+ *     // then pass parameters to the helper object _cacheHelper,
+ *     // whose role is to call the device producer.
+ *
+ *     // Initialize GvCore::GvIProviderKernel with the user DEVICE producer
+ *     GvCore::GvIProviderKernel< 1, CustomProducerKernel > kernelProvider( _kernelProducer );
+ *
+ *     // Define a 2D kernel block size
+ *     //
+ *     // This defines how we will access data in the producer kernel,
+ *     // where each brick of voxels will be produced separatly in parallel.
+ *     //
+ *     // Generally, for nodes production, we use a 2D kernel
+ *     // because we have to produce 8*8*8 voxels for a brick of size 8x8x8 voxels.
+ *     // (for details, see below for the device producer)
+ *     dim3 blockSize( 16, 8, 1 );
+ *
+ *     // Retrieve updated addresses from the "brick cache manager"
+ *     uint* nodesAddressList = thrust::raw_pointer_cast( &(*pNodesAddressCompactList)[ 0 ] );
+ *     uint* elemAddressList = thrust::raw_pointer_cast( &(*pElemAddressCompactList)[ 0 ] );
+ *
+ *     // Call the cache helper to write into the GPU cache
+ *     _cacheHelper.genericWriteIntoCache< TElementRes >( pNumElems,
+ *                                                        nodesAddressList,
+ *                                                        elemAddressList,
+ *                                                        pGpuPool,
+ *                                                        kernelProvider,
+ *                                                        pPageTable,
+ *                                                        blockSize );
+ * }
+ *
+ * @endcode
+ *
+ * Now, users must implement the DEVICE provider's produceData() method for each pool.
+ *
+ * <strong>The KEY concept to note is that in an implementation of a GvCore::GvIProviderKernel::produceData() method, the user will deal
+ * with ONE element at a time, i.e. either a node tile or a brick of voxels.</strong>
+ *
+ * Concerning <strong>Node Tile Production</strong>, given input parameters, the user has to :
+ * - retrieve the 3D spatial extent of a node (i.e. world position) in the current node tile,
+ * - determine if it is an empty region or a constant region, a region containing data, or if we have reach the maximum depth of the data structure (this is what we call an oracle).
+ * - update the node pool by writing this information.
+ *
+ * Then, for all regions marked as containting data, brick production will be processed.
+ *
+ * Concerning <strong>Brick Production</strong> (i.e. voxels data), given input parameters, the user has to :
+ * - retrieve the 3D spatial extent of a voxel (i.e. world position) in the current brick,
+ * - determine and/or compute voxel value for each channel of the brick pool (i.e. color, normal, density, etc...)
+ * - update the brick pool by writing this information.
+ *
+ * Here is the one for the node pool (index is 0).
+ *
+ * @code
+ *
+ * template< typename TGPUPoolKernelType >
+ * __device__
+ * inline uint CustomProducerKernel::produceData( TGPUPoolKernelType& nodePool,
+ *                                                uint requestID,
+ *                                                uint processID,
+ *                                                uint3 newElemAddress,
+ *                                                const GvCore::GvLocalizationInfo& parentLocInfo,
+ *                                                Loki::Int2Type< 0 > )
+ * {
+ *     // NOTE :
+ *     // In this method, you are inside a node tile.
+ *     // The goal is to determine, for each node of the node tile, which type of data it holds.
+ *     // Data type can be :
+ *     // - a constant region,
+ *     // - a region with data,
+ *     // - a region where max resolution is reached.
+ *     // So, one thread is responsible of the production of one node of a node tile.
+ *	
+ *     // Retrieve current node tile localization information code and depth
+ *     const GvCore::GvLocalizationInfo::CodeType parentLocCode = parentLocInfo.locCode;
+ *     const GvCore::GvLocalizationInfo::DepthType parentLocDepth = parentLocInfo.locDepth;
+ *
+ *     // Process ID gives the 1D index of a node in the current node tile
+ *     if ( processID < NodeRes::getNumElements() )
+ *     {
+ *         // First, compute the 3D offset of the node in the node tile
+ *         uint3 subOffset = NodeRes::toFloat3( processID );
+ *
+ *         // Node production corresponds to subdivide a node tile.
+ *         // So, based on the index of the node, find the node child.
+ *         // As we want to sudbivide the curent node, we retrieve localization information
+ *         // at the next level
+ *         uint3 regionCoords = parentLocCode.addLevel< NodeRes >( subOffset ).get();
+ *         uint regionDepth = parentLocDepth.addLevel().get();
+ *
+ *         // Create a new node for which you will have to fill its information.
+ *         GvStructure::OctreeNode newnode;
+ *         newnode.childAddress = 0;
+ *         newnode.brickAddress = 0;
+ *
+ *         // Call what we call an oracle that will determine the type of the region of the node accordingly
+ *         //
+ *         // For instance, to generate a sphere on device (GPU),
+ *         // you could test if the 8 corners of the node tile are inside an analytical function of a sphere.
+ *         GPUVoxelProducer::GPUVPRegionInfo nodeinfo = getRegionInfo( regionCoords, regionDepth );
+ *
+ *         // Now that the type of the region is found, fill the new node information
+ *         if ( nodeinfo == GPUVoxelProducer::GPUVP_CONSTANT )
+ *         {
+ *             newnode.setTerminal(true);
+ *         }
+ *         else if ( nodeinfo == GPUVoxelProducer::GPUVP_DATA )
+ *         {
+ *             newnode.setStoreBrick();
+ *             newnode.setTerminal( false );
+ *         }
+ *         else if ( nodeinfo == GPUVoxelProducer::GPUVP_DATA_MAXRES )
+ *         {
+ *             newnode.setStoreBrick();
+ *             newnode.setTerminal( true );
+ *         }
+ *
+ *         // Finally, write the new node information into the node pool by selecting channels :
+ *         // - Loki::Int2Type< 0 >() points to node information
+ *         // - Loki::Int2Type< 1 >() points to brick information
+ *         //
+ *         // newElemAddress.x + processID : is the adress of the new node in the node pool
+ *         nodePool.getChannel( Loki::Int2Type< 0 >() ).set( newElemAddress.x + processID, newnode.childAddress );
+ *         nodePool.getChannel( Loki::Int2Type< 1 >() ).set( newElemAddress.x + processID, newnode.brickAddress );
+ *     }
+ *
+ *     return 0;
+ * }
+ *
+ * @endcode
+ *
+ * <br>
+ * <hr>
+ *
+ * @section section_Library_HowToProgram_TheBasics_ShaderWriting Writing a Shader
+ *
+ * @subsection section_Library_HowToProgram_TheBasics_ShaderWriting_Definition Class Definition
+ *
+ * User must provide two types of shaders :
+ * - one on HOST (i.e. CPU),
+ * - one on DEVICE (i.e. GPU).
+ *
+ * At minimum, to create a HOST shader, users don't have to herit from one of the API classes,
+ * but must provide a type definition for its associted device-side class.
+ *
+ * @code
+ *
+ * class CustomShader
+ * {
+ *
+ * public:
+ *
+ *     typedef CustomShaderKernel KernelType;
+ *
+ * };
+ *
+ * @endcode
+ *
+ * At minimum, to create a DEVICE shader, user must derive from GvCore::GvIRenderShader class.
+ * Currently, users must implement all methods defined in the GvCore::GvIRenderShader.
+ *
+ * @code
+ *
+ * class CustomShaderKernel : public GvCore::GvIRenderShader< CustomShaderKernel >
+ * {
+ *
+ * public:
+ *
+ *     __device__
+ *     inline void preShadeImpl( const float3& rayStartTree, const float3& rayDirTree, float& tTree );
+ *
+ *     __device__
+ *     inline void postShadeImpl();
+ *
+ *     __device__
+ *     inline float getConeApertureImpl( const float tTree ) const;
+ *
+ *     __device__
+ *     inline float4 getColorImpl() const;
+ *	
+ *     __device__
+ *     inline bool stopCriterionImpl( const float3& rayPosInWorld ) const;
+ *
+ *     __device__
+ *     inline bool descentCriterionImpl( const float voxelSize ) const;
+ *
+ *     template< typename SamplerType >
+ *     __device__
+ *     inline void runImpl( const SamplerType& brickSampler,
+ *                          const float3 samplePosScene,
+ *                          const float3 rayDir,
+ *                          float& rayStep,
+ *                          const float coneAperture );
+ *
+ * private:
+ *
+ *     float4 _accColor;
+ *
+ * };
+ *
+ * @endcode
+ *
+ * @subsection section_Library_HowToProgram_TheBasics_ShaderWriting_Implementation Class Implementation
+ *
+ * Users don't have to implement specific stuff for the HOST shader, but only for the DEVICE one,
+ * i.e. all methods defined in the GvCore::GvIRenderShader class.
+ *
+ * @code
+ *
+ * __device__
+ * inline void SphereShaderKernel::preShadeImpl( const float3& rayStartTree, const float3& rayDirTree, float& tTree )
+ * {
+ *     _accColor = make_float4(0.f);
+ * }
+ *
+ * __device__
+ * inline void SphereShaderKernel::postShadeImpl()
+ * {
+ *     if ( _accColor.w >= opacityThreshold )
+ *     {
+ *         _accColor.w = 1.f;
+ *     }
+ * }
+ *
+ * __device__
+ * inline float SphereShaderKernel::getConeApertureImpl( const float tTree ) const
+ * {
+ *     // Overestimate to avoid aliasing
+ *     const float scaleFactor = 1.333f;
+ *
+ *     return k_renderViewContext.pixelSize.x * tTree * scaleFactor * k_renderViewContext.frustumNearINV;
+ * }
+ *
+ * __device__
+ * inline float4 SphereShaderKernel::getColorImpl() const
+ * {
+ *     return _accColor;
+ * }
+ *
+ * __device__
+ * inline bool SphereShaderKernel::stopCriterionImpl( const float3& rayPosInWorld ) const
+ * {
+ *     return ( _accColor.w >= opacityThreshold );
+ * }
+ *
+ * __device__
+ * inline bool SphereShaderKernel::descentCriterionImpl( const float voxelSize ) const
+ * {
+ *     return true;
+ * }
+ *
+ * template< typename SamplerType >
+ * __device__
+ * inline void SphereShaderKernel::runImpl( const SamplerType& brickSampler, const float3 samplePosScene,
+ * const float3 rayDir, float& rayStep, const float coneAperture )
+ * {
+ *     // Retrieve first channel element : color
+ *     float4 color = brickSampler.template getValue< 0 >( coneAperture );
+ *
+ *     // Test opacity
+ *     if ( color.w > 0.0f )
+ *     {
+ *         // Retrieve second channel element : normal
+ *         float4 normal = brickSampler.template getValue< 1 >( coneAperture );
+ *
+ *         float3 normalVec = normalize( make_float3( normal.x, normal.y, normal.z ) );
+ *         float3 lightVec = normalize( lightPosition );
+ *
+ *         // Lambertian lighting
+ *         float3 rgb = make_float3( color.x, color.y, color.z ) * max( 0.0f, dot( normalVec, lightVec ) );
+ *
+ *         color.x = rgb.x;
+ *         color.y = rgb.y;
+ *         color.z = rgb.z;
+ *     }
+ *
+ *     // Accumulate the color
+ *     _accColor = _accColor + ( 1.0f - _accColor.w ) * color;
+ * }
+ *
+ * @endcode
+ *
+ * <br>
+ * <hr>
+ *
+ * @section section_Library_HowToProgram_TheBasics_HelperClassesAndFunctions Helper classes and functions
+ *
+ * The API gives user useful helper classes :
+ * - common host producer,
+ * - common host and device shader,
+ * - common pipeline.
+ *
+ * @subsection Using Common Host Producer
+ *
+ * The structure.
+ *
+ * @subsection Using Common Shader Classes
+ *
+ * The structure.
+ *
+ ** @code
+ *
+ * // ---- [ 1 ] ---- GigaVoxels classes forward declaration
+ *
+ * #include <GvUtils/GvForwardDeclarationHelper.h>
+ *
+ * // ---- [ 2 ] ---- USER custom classes forward declaration
+ *
+ * // Custom Producer
+ * template< typename TDataStructureType > class ProducerKernel;
+ *
+ * // Custom Shader
+ * class ShaderKernel;
+ *
+ * // ---- [ 3 ] ---- USER data structure configuration
+ *
+ * // Defines the type list representing the content of one voxel
+ * typedef Loki::TL::MakeTypelist< uchar4, half4 >::Result DataType;
+ *
+ * // Defines the size of a node tile
+ * // We use a generalized N3-tree with 2 child in each dimension, i.e. an octree
+ * typedef GvCore::StaticRes1D< 2 > NodeRes;
+ *
+ * // Defines the size of a brick
+ * // We choose bricks with 8x8x8 voxels
+ * typedef GvCore::StaticRes1D< 8 > BrickRes;
+ *
+ * // ---- [ 4 ] ---- USER pipeline configuration
+ *
+ * // Defines the type of structure we want to use
+ * //
+ * // The data structure is parameterized by the data type of voxels, the N3-tree node resolution and its associted bricks content.
+ * typedef GvStructure::GvVolumeTree< DataType, NodeRes, BrickRes > DataStructureType;
+ *
+ * // Defines the type of the producer
+ * //
+ * // GvSimpleHostProducer defines a pass-through host producer. It only sends the production requests to its associated device-side producer.
+ * typedef GvUtils::GvSimpleHostProducer< ProducerKernel< DataStructureType >, DataStructureType > ProducerType;
+ *
+ * // Defines the type of the shader
+ * typedef GvUtils::GvSimpleHostShader< ShaderKernel > ShaderType;
+ *
+ * // Simple Pipeline
+ * typedef GvUtils::GvSimplePipeline< ProducerType, ShaderType, DataStructureType > PipelineType;
+ * 
+ * // ---- [ 5 ] ---- USER custom pipeline definition
+ *
+ * class SampleCore
+ * {
+ *
+ * private:
+ *
+ *     PipelineType* _pipeline;
+ *
+ * };
+ *
+ * @endcode
+ *
+ *
+ */
+ 

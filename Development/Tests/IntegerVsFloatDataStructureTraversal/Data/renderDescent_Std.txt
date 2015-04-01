@@ -1,0 +1,110 @@
+template< bool TFastUpdateMode, bool TPriorityOnBrick, class VolTreeKernelType, class SampleShaderType, class TCacheType >
+__device__
+void renderVolTree_Std( VolTreeKernelType& pDataStructure, SampleShaderType& pShader, TCacheType& pCache,
+					   uint2 pPixelCoords, const float3 pRayStartTree, const float3 pRayDirTree, const float ptMaxTree, float& ptTree  )
+{
+	CUDAPM_KERNEL_DEFINE_EVENT( 2 );
+	CUDAPM_KERNEL_DEFINE_EVENT( 3 );
+	CUDAPM_KERNEL_DEFINE_EVENT( 4 );
+	CUDAPM_KERNEL_DEFINE_EVENT( 5 );
+
+	CUDAPM_KERNEL_START_EVENT( pPixelCoords, 5 );
+
+	// Keep root node in cache 
+	 pCache._nodeCacheManager.setElementUsage( 0 ); 
+
+	 // Initialize the brick sampler, a helper class used to sample data in the data structure 
+	 GvVolumeTreeSamplerKernel< VolTreeKernelType > brickSampler; brickSampler._volumeTree = &pDataStructure;
+
+	// Initialize the position at wich data will be sampled
+	float3 samplePosTree = pRayStartTree + ptTree * pRayDirTree;
+
+	// Shader pre-shade process
+	pShader.preShade( pRayStartTree, pRayDirTree, ptTree );
+
+	float emptyToFilledSkippedDist = 0.0;
+
+	// Ray marching. 
+	 // Step with "ptTree" along ray from start to stop bounds. 
+          int numLoop = 0; 
+	 while ( ptTree < ptMaxTree //&& numLoop < 5000	// TO DO : remove this hard-coded value or let only for DEBUG
+		 && !pShader.stopCriterion( samplePosTree ) ) 	
+	{ 
+		 CUDAPM_KERNEL_START_EVENT( pPixelCoords, 4 );
+		
+		//float3 samplePosTree = pRayStartTree + ptTree * pRayDirTree;
+		 const float coneAperture = pShader.getConeAperture( ptTree ); 
+		 // Declare an empty node of the data structure.
+		 // It will be filled during the traversal according to cuurent sample position "samplePosTree" 
+		 GvStructure::OctreeNode node; CUDAPM_KERNEL_START_EVENT( pPixelCoords, 2 ); 
+		 // [ 1 ]- Descent the data structure (in general an octree) 
+		 // until max depth is reach or current traversed node has no subnodes,
+		 // or cone aperture is greater than voxel size. 
+		
+		 float nodeSizeTree; float3 sampleOffsetInNodeTree;
+		 bool modifInfoWriten = false;
+		 rendererDescentOctree< TPriorityOnBrick > ( pDataStructure, pCache, node, samplePosTree, coneAperture, nodeSizeTree, sampleOffsetInNodeTree, brickSampler, modifInfoWriten );
+
+	/*const*/ float rayLengthInNodeTree = getRayLengthInNode( sampleOffsetInNodeTree, nodeSizeTree, pRayDirTree );
+
+		CUDAPM_KERNEL_STOP_EVENT( pPixelCoords, 2 );
+
+		// Early loop termination
+		if ( TFastUpdateMode && modifInfoWriten )
+		{
+			break;
+		}
+
+		// [ 2 ] - If node is a brick, renderer it.
+		if ( node.isBrick() )
+		{
+			CUDAPM_KERNEL_START_EVENT( pPixelCoords, 3 );
+
+			if(emptyToFilledSkippedDist > 0.0)
+			{
+				emptyToFilledSkippedDist *= 0.5;
+				ptTree -= emptyToFilledSkippedDist;
+				float3 nodePos = samplePosTree - sampleOffsetInNodeTree;
+				samplePosTree = pRayStartTree + ptTree * pRayDirTree;
+				rayLengthInNodeTree =  rayLengthInNodeTree + emptyToFilledSkippedDist ;// getRayLengthInNode( samplePosTree - nodePos, nodeSizeTree, pRayDirTree );
+			}
+		// PASCAL
+			// This is used to stop the ray with a z-depth value smaller than the remaining brick ray length
+			//
+			// QUESTION : pas forcément, si objet qui cache est transparent !??
+			// => non, comme d'hab en OpenGL => dessiner d'abord les objets opaques
+			const float rayLengthInBrick = mincc( rayLengthInNodeTree, ptMaxTree - ptTree );	// ==> attention, ( ptMaxTree - ptTree < 0 ) ?? ==> non, à casue du test du WHILE !! c'est OK !!
+
+			// This is where shader program occurs
+			float dt = rendererBrickSampling< TFastUpdateMode, TPriorityOnBrick >
+									( pDataStructure, pShader, pCache, pRayStartTree, pRayDirTree,
+									//ptTree, rayLengthInNodeTree, brickSampler, modifInfoWriten );
+									ptTree, rayLengthInBrick, emptyToFilledSkippedDist, brickSampler, modifInfoWriten );
+
+			CUDAPM_KERNEL_STOP_EVENT( pPixelCoords, 3 );
+
+			emptyToFilledSkippedDist = 0.0;
+			ptTree += dt;
+		}
+		else
+		{
+			ptTree += rayLengthInNodeTree;// + coneAperture;
+			
+			emptyToFilledSkippedDist = pShader.getConeAperture( ptTree );
+			ptTree +=  emptyToFilledSkippedDist; //pShader.getConeAperture( ptTree ); // $FaN <<<< pull !
+		}
+
+		samplePosTree = pRayStartTree + ptTree * pRayDirTree;
+
+		// Update internal counter
+		numLoop++;
+
+		CUDAPM_KERNEL_STOP_EVENT( pPixelCoords, 4 );
+	} // while
+	
+	CUDAPM_KERNEL_STOP_EVENT( pPixelCoords, 5 );
+
+	// Shader post-shade process
+	pShader.postShade();
+}
+

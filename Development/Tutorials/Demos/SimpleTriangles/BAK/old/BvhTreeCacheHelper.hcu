@@ -1,0 +1,97 @@
+/*
+ * Copyright (C) 2011 Fabrice Neyret <Fabrice.Neyret@imag.fr>
+ * Copyright (C) 2011 Cyril Crassin <Cyril.Crassin@icare3d.org>
+ * Copyright (C) 2011 Morgan Armand <morgan.armand@gmail.com>
+ *
+ * This file is part of Gigavoxels.
+ *
+ * Gigavoxels is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Gigavoxels is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Gigavoxels.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// Gigavoxels
+//#include "../structure/GvVolumeTreeAddressType.h"
+
+/******************************************************************************
+ ***************************** KERNEL DEFINITION ******************************
+ ******************************************************************************/
+
+/******************************************************************************
+ * KERNEL GenericWriteIntoCache
+ *
+ * This method is a helper for writing into the cache.
+ *
+ * @param pNumElems The number of elements we need to produce and write.
+ * @param pNodesAddressList The numElements nodes concerned by the production.
+ * @param pElemAddressList The numElements addresses of the new elements.
+ * @param pGpuPool The pool where we will write the produced elements.
+ * @param pGpuProvider The provider called for the production.
+ * @param pPageTable 
+ ******************************************************************************/
+template< typename ElementRes, typename BvhTreeType, typename PoolType, typename ProviderType, typename PageTableType >
+__global__
+void GenericWriteIntoCache( uint pNumElems, uint* pNodesAddressList, uint* pElemAddressList,
+	BvhTreeType bvhTree, PoolType pGpuPool, ProviderType pGpuProvider, PageTableType pPageTable )
+{
+	// Retrieve global indexes
+	uint elemNum = blockIdx.x;
+	uint threadId = threadIdx.x + __uimul( threadIdx.y, blockDim.x ) + __uimul( threadIdx.z, __uimul( blockDim.x, blockDim.y ) );
+
+	// Check bound
+	if ( elemNum < pNumElems )
+	{
+		__shared__ uint elemIndex;
+		__shared__ uint nodeAddress;
+		__shared__ uint3 elemAddress;
+
+		__shared__ VolTreeBVHNodeUser node;
+
+		if ( threadId == 0 )
+		{
+			// Compute node address
+			uint nodeAddressEnc = pNodesAddressList[ elemNum ];
+			nodeAddress = nodeAddressEnc & 0x3FFFFFFF;
+
+			// fetch the node associated to the node address
+			bvhTree.fetchBVHNode( node, nodeAddress );
+
+			// Compute element address
+			elemIndex = pElemAddressList[ elemNum ];
+			elemAddress = make_uint3( elemIndex, 1, 1 ) * ElementRes::get();
+		}
+
+		// Thread Synchronization
+		__syncthreads();
+
+		// Produce data
+		__shared__ uint prodFeedback;
+		prodFeedback = pGpuProvider.produceData( pGpuPool, elemNum, threadId, elemAddress, node );
+
+		// Thread Synchronization
+		__syncthreads();
+
+		if ( threadId == 0 )
+		{
+			// FIXME : Move this ?
+			bvhTree.writeBVHNode( node, nodeAddress );
+			setDataPageUsage( elemIndex );
+		}
+
+		// Thread Synchronization
+		__syncthreads();
+	}
+}

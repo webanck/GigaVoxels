@@ -1,0 +1,54 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef INTERSECTIONTESTS_H
+#define INTERSECTIONTESTS_H
+
+// GigaVoxels
+#include "GvCore/GvCoreConfig.h"
+#include "GvCore/vector_types_ext.h"
+
+namespace GvCore {
+
+__device__
+__forceinline__ float trianglePointDistSqr(float3 p, float3 v0, float3 v1, float3 v2, float3 &baryCoords);
+
+__device__
+__forceinline__ uint triangleRayIntersect(float &t, float tmin, float3 &rayStart, float3 &rayDir, float3 vert0, float3 vert1, float3 vert2, float3 &baryCoords);
+
+__device__
+__forceinline__ int triangleRayIntersect2(float &t, float tmin, float3 &rayStart, float3 &rayDir, float3 vert0, float3 vert1, float3 vert2, float3 &baryCoords);
+
+__device__ __host__
+inline float ccSqr(float n);
+
+__device__
+__forceinline__ bool sphereBoxIntersect(float3 sphereCenter, float sphereRadius, float3 bboxMin, float3 bboxMax);
+
+#include "IntersectionTests.inl"
+
+} //namespace GvCore
+#endif

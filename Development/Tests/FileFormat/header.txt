@@ -1,0 +1,11 @@
+---- HEADER ----
+GigaVoxels
+version 1.0
+fileType bricks
+dataType uchar4
+nodeResolution 2
+brickResolution 8
+borderSize 1
+lOD 0
+---- DATA ----
+...

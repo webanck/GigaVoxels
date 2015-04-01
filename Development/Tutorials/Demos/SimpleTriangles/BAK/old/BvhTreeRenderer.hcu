@@ -1,0 +1,452 @@
+///*
+// * Copyright (C) 2011 Fabrice Neyret <Fabrice.Neyret@imag.fr>
+// * Copyright (C) 2011 Cyril Crassin <Cyril.Crassin@icare3d.org>
+// * Copyright (C) 2011 Morgan Armand <morgan.armand@gmail.com>
+// *
+// * This file is part of Gigavoxels.
+// *
+// * Gigavoxels is free software: you can redistribute it and/or modify
+// * it under the terms of the GNU Lesser General Public License as published
+// * by the Free Software Foundation, either version 3 of the License, or
+// * (at your option) any later version.
+// *
+// * Gigavoxels is distributed in the hope that it will be useful,
+// * but WITHOUT ANY WARRANTY; without even the implied warranty of
+// * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// * GNU General Public License for more details.
+// *
+// * You should have received a copy of the GNU General Public License
+// * along with Gigavoxels.  If not, see <http://www.gnu.org/licenses/>.
+// */
+//
+//#ifndef _BVHTREERENDERER_HCU_
+//#define _BVHTREERENDERER_HCU_
+//
+///******************************************************************************
+// ******************************* INCLUDE SECTION ******************************
+// ******************************************************************************/
+//
+//#include "BVHTrianglesManip.hcu"
+//
+///******************************************************************************
+// ****************************** INLINE DEFINITION *****************************
+// ******************************************************************************/
+//
+///******************************************************************************
+// * ...
+// *
+// * @param Pid ...
+// * @param pixelCoords ...
+// ******************************************************************************/
+//template<class BlockResolution>
+//__device__
+//inline void initPixelCoords(uint threadId, uint2 &pixelCoords)
+//{
+//// FIXME
+//#if 0 //RENDER_USE_SWIZZLED_THREADS==0
+//	pixelCoords.x = threadIdx.x + __uimul(blockIdx.x, BlockResolution::x);
+//	pixelCoords.y = threadIdx.y + __uimul(blockIdx.y, BlockResolution::y);
+//#else //Z-curve scheduling
+//
+//	gigavoxels::deinterleaveBits32(threadId, pixelCoords);
+//
+//	pixelCoords.x += blockIdx.x * BlockResolution::x;
+//	pixelCoords.y += blockIdx.y * BlockResolution::y;
+//#endif
+//}
+//
+///******************************************************************************
+// * CUDA kernel ...
+// *
+// * @param d_rayBufferT ...
+// ******************************************************************************/
+//
+////////// REMOVE ME ///////////////
+//__device__
+//float3 shadeBVH(const float3 materialColor, const float3 normalVec, const float3 lightVec, const float3 eyeVec, const float3 ambiantTerm, const float3 diffuseTerm, const float3 specularTerm)
+//{
+//	float3 final_color = materialColor*ambiantTerm;
+//
+//	//float lightDist=length(lightVec);
+//	float3 lightVecNorm=lightVec;
+//	float lambertTerm = abs(dot(normalVec,lightVecNorm));
+//
+//	if(lambertTerm > 0.0f) {
+//		//Diffuse
+//		final_color += (materialColor*diffuseTerm)*lambertTerm ;
+//
+//		float3 halfVec = normalize(lightVecNorm + eyeVec);
+//		float specular = pow( max( (dot(normalVec, halfVec)) , 0.0f), 32.0f );
+//
+//		//Specular
+//		final_color += make_float3(specular) *specularTerm;
+//	}
+//
+//	return final_color;
+//}
+//
+//template < typename BvhTreeKernelType >
+//__device__
+//static void renderBvhTree_Std(BvhTreeKernelType &bvhTree, const uint threadId, const uint2 pixelCoords,
+//	const float3 rayStart, const float3 rayDir, float &t, int &maskedAt, float4 &accColor)
+//{
+//	bool active = true;
+//
+//	uint dataRequestIdx = 0;
+//	uint numRequest = 0;
+//
+//	__shared__ uint numRequestBlock;
+//
+//	if (threadId == 0)
+//		numRequestBlock = 0;
+//
+//	float dataRequestT = t;
+//
+//	float lastInterT = t;
+//	float lastInterTmax = t;
+//
+//	__shared__ CudaQueue<uint, 8> dataRequestQueue;
+//	__shared__ CudaQueue<float, 8> dataRequestTQueue;
+//
+//	if (threadId == 0)
+//		dataRequestQueue.clear(0U);
+//
+//	uint numInter = 0;
+//
+//	while (__all(active))
+//	{
+//		__shared__ uint Np;
+//		__shared__ VolTreeBVHNodeUser snode;
+//
+//		if (threadId == 0)
+//			Np = 0;
+//		__syncthreads();
+//
+//		float searchT = min(t, dataRequestT);
+//
+//		d_bvhTraversalStep_SharedStack2(bvhTree, threadId, maskedAt, rayStart, rayDir, Np, snode, searchT, lastInterT, lastInterTmax);
+//
+//		__syncthreads();
+//
+//		if (pixelCoords.x == 256 && pixelCoords.y == 256) {
+//			printf("snode.subNodesDataIdx = %d\n", snode.subNodesDataIdx);
+//		}
+//		if (snode.isDataType())
+//		{
+//			if (snode.isCPULink())
+//			{
+//				if (1/*outputVisInfo*/)
+//				{
+//					__shared__ bool doRequest;
+//
+//					if (threadId == 0)
+//						doRequest = false;
+//					__syncthreads();
+//
+//					if (maskedAt > S.curIndex && lastInterT < dataRequestT)
+//					{
+//						doRequest = true;
+//						dataRequestT = lastInterT;
+//					}
+//					__syncthreads();
+//
+//					if (doRequest /*&& numRequestBlock<1*/)
+//					{
+//						if (threadId == 0)
+//						{
+//							dataRequestQueue.push(Np);
+//							dataRequestTQueue.push(lastInterT);
+//							numRequestBlock++;
+//						}
+//					}
+//					__syncthreads();
+//				}
+//				else
+//				{
+//					// TODO
+//				}
+//			}
+//			else if (snode.isLinkActive())
+//			{
+//				uint dataIdx = snode.getDataIdx() * BVH_DATA_PAGE_SIZE;
+//
+//				__shared__ float4 vertPosBuff[BVH_DATA_PAGE_SIZE]; // FIXME: user-type
+//
+//				for (uint p = 0; p < BVH_DATA_PAGE_SIZE; p += NUM_RAYS_PER_BLOCK_X * NUM_RAYS_PER_BLOCK_Y)
+//				{
+//					uint vertBuffIdx = p + threadId;
+//
+//					if (vertBuffIdx < BVH_DATA_PAGE_SIZE)
+//						vertPosBuff[vertBuffIdx] = bvhTree.getVertexData<0>(dataIdx + vertBuffIdx);
+//				}
+//
+//				__syncthreads();
+//
+//				 uint minInterPageIdx=0xFFFFFFFF;
+//				uint minInterVertIdx=0xFFFFFFFF;
+//
+//				__shared__ bool pageUsed;
+//				if(threadId==0)
+//					pageUsed=false;
+//				__syncthreads();
+//
+//				for(uint v=0; v< BVH_DATA_PAGE_SIZE/3; v++)
+//				{
+//					float4 tverts[3]; // fixme
+//
+//					tverts[0]=vertPosBuff[v*3+0];
+//					tverts[1]=vertPosBuff[v*3+1];
+//					tverts[2]=vertPosBuff[v*3+2];
+//
+//					float3 vpos[3];
+//					vpos[0]=make_float3(tverts[0].x, tverts[0].y, tverts[0].z);
+//					vpos[1]=make_float3(tverts[1].x, tverts[1].y, tverts[1].z);
+//					vpos[2]=make_float3(tverts[2].x, tverts[2].y, tverts[2].z);
+//
+//					float3 baryCoords;
+//					float interT;
+//					uint interRes=triangleRayIntersect(interT, 0.0f /*lastInterT-0.000001f*/, rayStart, rayDir, vpos[0],vpos[1],vpos[2], baryCoords);
+//
+//					if(maskedAt>S.curIndex && interRes && interT<t)
+//					{
+//						t=interT;
+//						pageUsed=true;
+//
+//						float4 sampleColor;
+//
+////#if BVH_USE_COLOR
+////						BVHVertexColorType vCols[3];
+////
+////						vCols[0]=vertColBuff[v*3+0];
+////						vCols[1]=vertColBuff[v*3+1];
+////						vCols[2]=vertColBuff[v*3+2];
+////
+////						float4 vColsF[3];
+////						vColsF[0]=make_float4(vCols[0].x/255.0f, vCols[0].y/255.0f, vCols[0].z/255.0f, vCols[0].w/255.0f);
+////						vColsF[1]=make_float4(vCols[1].x/255.0f, vCols[1].y/255.0f, vCols[1].z/255.0f, vCols[1].w/255.0f);
+////						vColsF[2]=make_float4(vCols[2].x/255.0f, vCols[2].y/255.0f, vCols[2].z/255.0f, vCols[2].w/255.0f);
+////
+////						sampleColor=vColsF[0];
+////
+////
+////#else
+//						float gs = 0.2f;
+//						sampleColor = make_float4(gs, gs, gs, 0.001f);
+////#endif
+//
+//						//Lighting
+//						float3 sampleColor3=make_float3(sampleColor.x, sampleColor.y, sampleColor.z);
+//						sampleColor3=sampleColor3*make_float3(0.7f) +make_float3(0.2f, 0.15f, 0.2f);
+//
+//						float3 normal;
+//						float3 edge1, edge2;
+//
+//						edge1= vpos[1]-vpos[0];
+//						edge2= vpos[2]-vpos[0];
+//						normal=/*make_float3(0.0f)-*/normalize(cross(edge1, edge2));
+//
+//						float3 lightPos=make_float3(100.0f, 100.0f, 100.0f);
+//
+//
+//						float3 eyeVec=-1.0f * rayDir;//normalize(vpos[0]-ray.start);
+//						float3 lightVec=eyeVec;//normalize(lightPos-vpos[0]);
+//
+//						sampleColor3=shadeBVH(sampleColor3, normal, lightVec, eyeVec, make_float3(0.5f), make_float3(0.8f), make_float3(0.4f));
+//
+//
+//						sampleColor.x=sampleColor3.x; sampleColor.y=sampleColor3.y; sampleColor.z=sampleColor3.z;
+//
+//						///////////////////////////////////////////
+//						accColor = sampleColor;
+//					}
+//				}
+//
+//				__syncthreads();
+//
+//				if (1/*outputVisInfo*/ && pageUsed)
+//					setDataPageUsage(snode.getDataIdx());
+//
+//				//Limit number of intersection
+//				numInter++;
+//			}
+//		}
+//
+//		if (S.isEmpty())
+//			active = false;
+//		else
+//		{
+//			active = false;
+//
+//			if (maskedAt != -1)
+//				active = true;
+//		}
+//
+//		__syncthreads();
+//	}
+//
+//	for (uint i = 0; i < min(numRequestBlock, 8); ++i)
+//	{
+//		float iT=dataRequestTQueue.data[i];
+//
+//		__shared__ bool emmitReq;
+//
+//		if (threadId == 0)
+//			emmitReq = false;
+//		__syncthreads();
+//
+//		if (iT < t)
+//			emmitReq = true;
+//		__syncthreads();
+//
+//		if(threadId==0 && emmitReq)
+//		{
+//			bvhDataRequest(dataRequestQueue.data[i]);
+//			//dataRequested=true;
+//			printf("dataRequested -> %d\n", dataRequestQueue.data[i]);
+//		}
+//	}
+//}
+//
+///******************************************************************************
+// * CUDA kernel ...
+// *
+// * @param d_rayBufferT ...
+// * @param d_rayBufferMaskedAt ...
+// * @param d_rayBufferStackIndex ...
+// * @param d_rayBufferStackVals ...
+// ******************************************************************************/
+//template < typename BlockResolution, typename BvhTreeKernelType >
+//__global__
+//void RenderKernelSimple( BvhTreeKernelType bvhTree )
+//{
+//	//Compute thread ID
+//	uint threadId = threadIdx.x + threadIdx.y * BlockResolution::x;
+//
+//	// pixel position
+//	uint2 pixelCoords;
+//	initPixelCoords<BlockResolution>(threadId, pixelCoords);
+//
+//	bool outOfFrame = pixelCoords.x >= k_renderViewContext.frameSize.x || pixelCoords.y >= k_renderViewContext.frameSize.y;
+//
+//	float3 pixelVecWP = k_renderViewContext.viewPlaneDirWP
+//		+ k_renderViewContext.viewPlaneXAxisWP * (float)pixelCoords.x
+//		+ k_renderViewContext.viewPlaneYAxisWP * (float)pixelCoords.y;
+//
+//	float3 rayStart = k_renderViewContext.viewCenterWP;
+//	float3 rayDir = normalize(pixelVecWP);
+//
+//	bool masked = outOfFrame;
+//
+//	float boxInterMin=0.0f;
+//	float boxInterMax=10000.0f;
+//
+//	int hit = gigavoxels::intersectBox(rayStart, rayDir, make_float3(0.0f), make_float3(1.0f), boxInterMin, boxInterMax);
+//	hit = hit && boxInterMax>0.0f;
+//	masked = outOfFrame || (!hit) ;
+//	boxInterMin=maxcc(boxInterMin, k_renderViewContext.frustumNear);
+//
+//	// if any thread hit the box, the whole bloc will continue
+//	if (__any(!masked))
+//	{
+//		int maskedAt = masked ? -1 : BVH_TRAVERSAL_STACK_SIZE;
+//
+//		initStacks(threadId);
+//
+//		float t = boxInterMax;
+//		float4 accColor = make_float4(0.0f);
+//
+//		renderBvhTree_Std(bvhTree, threadId, pixelCoords, rayStart, rayDir, t, maskedAt, accColor);
+//
+//		if (!outOfFrame)
+//		{
+//			float4 color = accColor;
+//
+//			if (color.w > 0.0f)
+//			{
+//				// write output color
+//				color.x = __saturatef(color.x);
+//				color.y = __saturatef(color.y);
+//				color.z = __saturatef(color.z);
+//				color.w = __saturatef(color.w);
+//
+//				k_renderViewContext.outFrameColor.get(pixelCoords) = make_uchar4((uchar)(color.x * 255.0f), (uchar)(color.y * 255.0f), (uchar)(color.z * 255.0f), (uchar)(color.w * 255.0f));
+//			}
+//		}
+//	}
+//}
+//
+///******************************************************************************
+// * CUDA kernel ...
+// *
+// * @param d_rayBufferT ...
+// * @param d_rayBufferMaskedAt ...
+// * @param d_rayBufferStackIndex ...
+// * @param d_rayBufferStackVals ...
+// ******************************************************************************/
+//template < typename BlockResolution >
+//__global__
+//void RenderKernelInitRayState(float *d_rayBufferT, int *d_rayBufferMaskedAt, int *d_rayBufferStackIndex, uint *d_rayBufferStackVals)
+//{
+//	//Compute thread ID
+//	uint threadId = threadIdx.x + threadIdx.y * BlockResolution::x;
+//
+//	// pixel position
+//	uint2 pixelCoords;
+//	initPixelCoords<BlockResolution>(threadId, pixelCoords);
+//
+//	bool outOfFrame= pixelCoords.x >= k_renderViewContext.frameSize.x || pixelCoords.y >= k_renderViewContext.frameSize.y;
+//
+//	if (!outOfFrame)
+//	{
+//		float3 pixelVecWP = k_renderViewContext.viewPlaneDirWP
+//			+ k_renderViewContext.viewPlaneXAxisWP * (float)pixelCoords.x
+//			+ k_renderViewContext.viewPlaneYAxisWP * (float)pixelCoords.y;
+//
+//		float3 rayStart = k_renderViewContext.viewCenterWP;
+//		float3 rayDir = normalize(pixelVecWP);
+//
+//		__shared__ bool allStop;
+//
+//		if (threadId == 0)
+//			allStop = true;
+//		syncthreads();
+//
+//		bool masked=false;
+//
+//		float boxInterMin=0.0f; float boxInterMax=10000.0f;
+//		int hit=gigavoxels::intersectBox(rayStart, rayDir, make_float3(0.0f), make_float3(1.0f), boxInterMin, boxInterMax);
+//		hit=hit && boxInterMax>0.0f;
+//		masked= masked || (!hit) ;
+//		boxInterMin=maxcc(boxInterMin, k_renderViewContext.frustumNear);
+//
+//		if (!masked)
+//			allStop = false;
+//		syncthreads();
+//
+//		uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x;
+// 
+//		if (!allStop)
+//		{
+//			initStacks(threadId);
+//
+//			if (threadId == 0)
+//				d_rayBufferStackIndex[blockIndex] = S.curIndex;
+//
+//			if (threadId < S.curIndex)
+//				d_rayBufferStackVals[blockIndex * BVH_TRAVERSAL_STACK_SIZE + threadId] = S.data[threadId];
+// 
+//			d_rayBufferT[pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x] = boxInterMax;
+//
+//			if (masked)
+//				d_rayBufferMaskedAt[pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x] = -1;
+//			else
+//				d_rayBufferMaskedAt[pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x] = BVH_TRAVERSAL_STACK_SIZE;
+//		}
+//		else
+//		{
+//			d_rayBufferStackIndex[blockIndex] = 0;
+//		}
+//	}
+//}
+//
+//#endif // !_BVHTREERENDERER_HCU_

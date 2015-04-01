@@ -1,0 +1,137 @@
+Hi Pascal,
+
+This is the basic code including the test of origin within the box (I think you might additionally need some epsilons to improve it further):
+
+bool projectPoint( GLdouble objX, GLdouble objY, GLdouble objZ, GLdouble& winPosX, GLdouble& winPosY, GLdouble& winPosZ )
+{
+	GLdouble modelview[16];
+	GLdouble projection[16];
+	GLint viewport[4];
+
+	glGetDoublev( GL_MODELVIEW_MATRIX, modelview );
+	glGetDoublev( GL_PROJECTION_MATRIX, projection );
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	  // compute projected coordinates
+    //GLdouble winX, winY, winZ;
+    gluProject(objX, objY, objZ,
+               modelview, projection, viewport,
+               &winPosX, &winPosY, &winPosZ);
+
+
+    // print screen coordinates
+    std:rintf("Vertex [ %6.2f %6.2f %6.2f ] -> Screen [ %4d %4d ] (%d, %d) %f \n", 
+           objX, objY, objZ, GLint(winPosX), viewport[3] - GLint(winPosY), winw, winh, winPosZ);
+
+	return (winPosX >= 0 && winPosX <= winw && viewport[3] - winPosY >= 0 && viewport[3] - winPosY <= winh && winPosZ >= 0 && winPosZ <= 1);
+}
+
+bool isBoundingBoxVisible( )
+{
+	GLdouble x0 = winw, y0 = winh, z0 = 100.0;
+	GLdouble x1 = 0, y1 = 0, z1 = 0.0;
+	GLdouble xt = 0, yt = 0, zt = 0;
+	
+	bool b = false;
+
+	for(int x = 0; x <= 1; x++)
+	{
+		for(int y = 0; y <= 1; y++)
+		{
+			for(int z = 0; z <= 1; z++)
+			{
+				b = b || projectPoint( x, y, z, xt, yt, zt );
+
+				if( xt < x0 )	x0 = xt;
+				if( yt < y0 )	y0 = yt;
+				if( zt < z0 )	z0 = zt;
+
+				if( xt > x1 )	x1 = xt;
+				if( yt > y1 )	y1 = yt;
+				if( zt > z1 )	z1 = zt;
+			}
+		}
+	}
+
+	/*if( x0 < 0 )		x0 = 0;
+	if( x1 > winw )		x1 = winw;
+	if( y0 < 0 )		y0 = 0;
+	if( y1 > winh )		y1 = winh;
+	if( z0 < 0 )		z0 = 0;
+	if( z1 > 1 )		z1 = 1;*/
+
+	bool b2 = ( x0 >= 0 && x0 <= 1 && y0 >= 0 && y0 <= 1 && z0 >= 0 && z0 <= 1 );
+
+	//bool b1 = projectPoint(0.0, 0.0, 0.0, x0, y0, z0);
+	//bool b2 = projectPoint(1.0, 1.0, 1.0, x1, y1, z1);
+	//bool b3 = projectPoint(1.0, 1.0, 1.0, x1, y1, z1);
+
+	return b || b2;;
+}
+
+void getProjectedAreaOnScreen( )
+{
+	GLdouble x0 = winw, y0 = winh, z0;
+	GLdouble x1 = 0, y1 = 0;// z1;
+	GLdouble xt = 0, yt = 0, zt = 0;
+
+	bool b = false;
+
+	for(int x = 0; x <= 1; x++)
+	{
+		for(int y = 0; y <= 1; y++)
+		{
+			for(int z = 0; z <= 1; z++)
+			{
+				bool b1 = projectPoint( x, y, z, xt, yt, zt );
+				b = b || b1;
+
+				if( xt < x0 )	x0 = xt;
+				if( yt < y0 )	y0 = yt;
+
+				if( xt > x1 )	x1 = xt;
+				if( yt > y1 )	y1 = yt;
+			}
+		}
+	}
+
+	if( !b )
+		return;
+
+	if( x0 < 0 )		x0 = 0;
+	if( x1 > winw )		x1 = winw;
+	if( y0 < 0 )		y0 = 0;
+	if( y1 > winh )		y1 = winh;
+
+	//std::cout << "Box coordinates : (" << x0 << " , " << y0 << ")  (" << x1 << " , " << y1 << ")" << std::endl;
+	
+	glMatrixMode(GL_PROJECTION);
+	glPushMatri );
+    glLoadIdentity();
+    gluOrtho2D( 0, winw, 0, winh );
+
+	glMatrixMode(GL_MODELVIEW); 
+	glPushMatri );
+	glLoadIdentity();
+
+	
+
+	glColor3f( 0.6, 0.6, 0.6 );
+	glLineWidth( 5.0 );
+	glBegin( GL_LINE_LOOP );
+	glVertex2f( x0, y0 );
+	glVertex2f( x1, y0 );
+	glVertex2f( x1, y1 );
+	glVertex2f( x0, y1 );
+	glEnd( );
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatri );
+
+	glMatrixMode(GL_MODELVIEW); 
+	glPopMatri );
+}
+
+
+Regards,
+Prashant

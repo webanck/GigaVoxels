@@ -1,0 +1,19 @@
+/** \page Tutorial_Procedural_Terrain Procedural Terrain Tutorial
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * This tutorial shows how to create a procedural terrain.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ *
+ * Here is a screenshot of the Procedural Terrain sample in action.
+ *
+ * \image html tutorial_proceduralterrain_overview.png "Procedural Terrain"
+ * <br>
+ *
+ */
+ 

@@ -1,0 +1,62 @@
+/*! \page Tool_GvVoxelizer GigaVoxels Voxelizer
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ * The GigaVoxels Voxelizer is an application used to voxelize scenes and output data in a format requested by GigaVoxels.
+ * <br>It has been designed as :
+ * - a simple executable.
+ *
+ * There is one GUI components:
+ * - a simple editor (a modal dialog + a log-out console)
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ * Here is a screenshot of the GigaVoxels Voxelizer in action.
+ * \image html voxelizerWidget.png "The GigaVoxels Voxelizer"
+ *
+ * <br>
+ *
+ * \image html voxelizerConsole.png "The voxelizer log-out console"
+ *
+ * <br>
+ * <hr>
+ *
+ * @section Dependances_Section Dependances
+ * The voxelizer is build in C++ with GUI elements comming the Qt library.
+ * Furthermore, two libraries are used to handle the import of 3D file formats and images :
+ * - <a href="http://assimp.sourceforge.net/">Assimp</a> : the Open Asset Import Library
+ * - <a href="http://cimg.sourceforge.net/">CImg</a> : the C++ template image processing library
+ *
+ * <br>
+ * Actually, the CImg library does not support types of image like (.jpg), (.png) and (.tga).
+ * But it can be extended with the ImageMagick library in two ways :
+ * - either install the ImageMagick release distribution with the development kit (install headers and libary with path in System)
+ * - either compile yourself ImageMagick
+ * CMake add a FindImageMagick module to see if it is installed on the machine, and if so defines variables to include.
+ *
+ * <hr>
+ *
+ * @section Features_Section Features
+ * The voxelizer main features are:
+ * - 3D file selection
+ * - choose the maximum level od resolution (this is equivalent to choose the number of voxels in one dimension)
+ * - choose to generate normals or not
+ * - choose the width of bricks (i.e. how many voxels stands in a node of the octree)
+ * - choose the type of data (unsigned char 4, float or float 4)
+ * <hr>
+ *
+ * @section Philosophy_Section Philosophy and Limitations
+ * Currently, the underlying generated data structure is an octree, not a general N-Tree.
+ * <br>Currently, only one channel is handled (a second one is "unsigned char 4" for "normals" if activated).
+ * <br>Currently, only "unsigned char 4" type is handled...
+ *
+ * <hr>
+ *
+ * @section voxelizer_UML_Design Design
+ * Here is a screenshot of the associated UML design.
+ * \image html voxelizer_UML_Design.png "The voxelizer UML design"
+ * Users can utilize the widget GvxVoxelizerDialog to edit configuration settings that will be pass to the main GvxSceneVoxelizer base class.
+ * Currently, the implemented class GvxAssimpSceneVoxelizer utilizes the Assimp library to import 3D scenes.
+ */

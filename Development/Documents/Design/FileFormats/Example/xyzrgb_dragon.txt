@@ -1,0 +1,6 @@
+<GigaVoxels>
+	<FileFormat name="xyzrgb_dragon resolution="512" brickSize="8" brickBorder="1">
+		<Nodes>
+		<Bricks dataTypeList="uchar4">
+	</FileFormat>
+</GigaVoxels>

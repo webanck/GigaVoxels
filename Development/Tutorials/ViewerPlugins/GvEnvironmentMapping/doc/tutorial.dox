@@ -1,0 +1,17 @@
+/*! \page Tutorial_Renderer_GLSL Renderer GLSL Tutorial
+ * 
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * This tutorial shows how to create your own customized renderer that can be inserted the GigaVoxels pipeline.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ *
+ * Here is a screenshot of the Renderer GLSL sample in action.
+ * \image html tutorial_rendererglsl_overview.png "Renderer GLSL"
+ *
+ */
+ 

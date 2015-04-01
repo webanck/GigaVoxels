@@ -1,0 +1,56 @@
+/** \page ProgrammingTheGigaVoxelsLibrary Programming the Library
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ *
+ * @section Overview_Section Ovberview
+ *
+ * In this section we give information and details on how to program with the GogaVoxels library :
+ * - \ref Technologies_Section
+ * - \ref library_Mecanismn
+ * - \ref library_Programmation
+ * - \ref tutorials_section
+ * - \ref tools_section
+ * - \ref library_ExternalLibraries
+ *
+ * <hr>
+ *
+ * @section Technologies_Section Technologies
+ *
+ * Giggavoxels main features are based on the CUDA library that leverages the use of massively parallel processors in GPU.
+ * <br>It is a static library written in C++. It is fully template based with an extensive use of the LOKI library.
+ *
+ *
+ * This library is cross-platform and can be compiled and used on Windows and Linux.
+ *
+ * <hr>
+ *
+ * @section library_Mecanismn Mecanismns
+ *
+ * You can find explanation on different GigaVoxels mecanismns here : @ref @subpage Mecanismns
+ *
+ * <hr>
+ *
+ * @section library_Programmation Programmation
+ *
+ * You can find explanation on how to program with the GigaVoxels libary here : @ref @subpage Library_HowToProgram
+ *
+ * <hr>
+ *
+ * @section tutorials_section Tutorials
+ *
+ * You can find a list of useful examples here : @ref @subpage Tutorials
+ *
+ * <hr>
+ *
+ * @section tools_section Tools
+ *
+ * You can find a list of useful tools here : @ref @subpage Tools
+ *
+ * <hr>
+ *
+ * @section library_ExternalLibraries External Libraries
+ *
+ * You can find list of external libraries here : @ref @subpage ExternalLibraries
+ *
+ */

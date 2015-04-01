@@ -1,0 +1,440 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _VOLUME_TREE_TRAVERSAL_KERNEL_H_
+#define _VOLUME_TREE_TRAVERSAL_KERNEL_H_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// GigaVoxels
+//#include <GvRendering/GvRendererHelpersKernel.h>
+//#include <GvRendering/GvSamplerKernel.h>
+//#include "GvRendering/GvRendererContext.h"
+//#include <GvPerfMon/GvPerformanceMonitor.h>
+//#include <GvStructure/GvNode.h>
+
+// GigaVoxels
+#include <GvCore/vector_types_ext.h>
+#include <GvStructure/GvVolumeTreeKernel.h>
+#include <GvRendering/GvSamplerKernel.h>
+#include <GvStructure/GvNode.h>
+
+#include "ShaderKernel.h"
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+#define OCTREE_DISABLE_BRICK_SAMPLING 0
+#define OCTREE_DISABLE_BRICK_SAMPLING_ALPHA 0.0100f
+
+#define DESCENT_USE_LOCCODE 0
+
+// TO DO
+// Est-ce que cette variable est toujours utilisée ?
+
+
+/**
+ * ...
+ */
+__constant__ uint2 k_debugCoords;
+
+
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+
+	/******************************************************************************
+	 * Descent in data structure (in general octree) until max depth is reach or current traversed node has no subnodes,
+	 * or cone aperture is greater than voxel size.
+	 *
+	 * @param pVolumeTree the data structure
+	 * @param pGpuCache the cache
+	 * @param node a node that user has to provide. It will be filled with the final node of the descent
+	 * @param pSamplePosTree A given position in tree
+	 * @param pConeAperture A given cone aperture
+	 * @param pNodeSizeTree the returned node size
+	 * @param pSampleOffsetInNodeTree the returned sample offset in node tree
+	 * @param pBrickSampler The sampler object used to sample data in the data structure, it will be initialized after the descent
+	 * @param pRequestEmitted a returned flag to tell wheter or not a request has been emitted during descent
+	 ******************************************************************************/
+	template< bool priorityOnBrick, class TVolTreeKernelType, class GPUCacheType >
+	__device__
+	inline void rendererDescentOctree( TVolTreeKernelType& pVolumeTree, GPUCacheType& pGpuCache, GvStructure::GvNode& pNode,
+		const float3 pSamplePosTree, const float pConeAperture, float& pNodeSizeTree, float3& pSampleOffsetInNodeTree,
+		GvRendering::GvSamplerKernel< TVolTreeKernelType >& pBrickSampler, bool& pRequestEmitted ,ShaderKernel& pShader)
+	{
+		
+		// Useful variables initialization
+		uint nodeDepth = 0;
+		float3 nodePosTree = make_float3( 0.0f );
+		pNodeSizeTree = static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		float nodeSizeTreeInv = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		float voxelSizeTree = pNodeSizeTree / static_cast< float >( TVolTreeKernelType::BrickResolution::maxRes );
+
+		uint brickChildAddressEnc  = 0;
+		uint brickParentAddressEnc = 0;
+
+		float3 brickChildNormalizedOffset = make_float3( 0.0f );
+		float brickChildNormalizedScale  = 1.0f;
+
+		// Initialize the address of the first node in the "node pool".
+		// While traversing the data structure, this address will be
+		// updated to the one associated to the current traversed node.
+		// It will be used to fetch info of the node stored in then "node pool".
+		uint nodeTileAddress = pVolumeTree._rootAddress;
+
+		// Traverse the data structure from root node
+		// until a descent criterion is not fulfilled anymore.
+		bool descentSizeCriteria;
+		
+		do
+		{
+			// [ 1 ] - Update size parameters
+			pNodeSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current node size
+			voxelSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current voxel size
+			nodeSizeTreeInv		*= static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );			// current node resolution (nb nodes in a dimension)
+
+			// [ 2 ] - Update node info
+			//
+			// The goal is to fetch info of the current traversed node from the "node pool"
+			uint3 nodeChildCoordinates = make_uint3( nodeSizeTreeInv * ( pSamplePosTree - nodePosTree ) );
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates );// & nodeChildAddressMask;
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+			nodePosTree = nodePosTree + pNodeSizeTree * make_float3( nodeChildCoordinates );
+			// Try to retrieve node from the node pool given its address
+			//pVolumeTree.fetchOctreeNode( pNode, nodeTileAddress, nodeChildAddressOffset );
+			
+			pVolumeTree.fetchNode( pNode, nodeAddress );
+
+			// Update brick info
+			if ( brickChildAddressEnc )
+			{
+				brickParentAddressEnc = brickChildAddressEnc;
+				brickChildNormalizedScale  = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );		// 0.5f;
+				brickChildNormalizedOffset = brickChildNormalizedScale * make_float3( nodeChildCoordinates );
+			}
+			else
+			{
+				brickChildNormalizedScale  *= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// 0.5f;
+				brickChildNormalizedOffset += brickChildNormalizedScale * make_float3( nodeChildCoordinates );
+			}
+			brickChildAddressEnc = pNode.hasBrick() ? pNode.getBrickAddressEncoded() : 0;
+
+			// Update descent condition
+			descentSizeCriteria = pShader.descentCriterionImpl( pNodeSizeTree  , pConeAperture ) && ( nodeDepth < k_maxVolTreeDepth );
+			//( voxelSizeTree > pConeAperture ) && ( nodeDepth < k_maxVolTreeDepth );
+			
+			// Update octree depth
+			nodeDepth++;
+
+			// ---- Flag used data (the traversed one) ----
+
+			// Set current node as "used"
+			pGpuCache._nodeCacheManager.setElementUsage( nodeTileAddress );
+
+			// Set current brick as "used"
+			if ( pNode.hasBrick() )
+			{
+				pGpuCache._brickCacheManager.setElementUsage( pNode.getBrickAddress() );
+			}
+
+			// ---- Emit requests if needed (node subdivision or brick loading/producing) ----
+
+			// Process requests based on traversal strategy (priority on bricks or nodes)
+			if ( priorityOnBrick )
+			{
+				// Low resolution first						  
+				if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
+				{
+					pGpuCache.loadRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+				else if ( !pNode.hasSubNodes() && descentSizeCriteria && !pNode.isTerminal() )
+				{
+					pGpuCache.subDivRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+			}
+			else
+			{	 // High resolution immediatly
+				if ( descentSizeCriteria && !pNode.isTerminal() )
+				{
+					if ( ! pNode.hasSubNodes() )
+					{
+						pGpuCache.subDivRequest( nodeAddress );
+						pRequestEmitted = true;
+					}
+				}
+				else if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
+				{
+					pGpuCache.loadRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+			}
+
+			nodeTileAddress = pNode.getChildAddress().x;
+		}
+		while ( descentSizeCriteria && pNode.hasSubNodes() );	// END of the data structure traversal
+		
+		// Compute sample offset in node tree
+		pSampleOffsetInNodeTree = pSamplePosTree - nodePosTree;
+		
+		// Update brickSampler properties
+		if ( pNode.isBrick() )
+		{
+			pBrickSampler._nodeSizeTree = pNodeSizeTree;
+			pBrickSampler._sampleOffsetInNodeTree = pSampleOffsetInNodeTree;
+			pBrickSampler._scaleTree2BrickPool = pVolumeTree.brickSizeInCacheNormalized.x / pBrickSampler._nodeSizeTree;
+
+			pBrickSampler._brickParentPosInPool = pVolumeTree.brickCacheResINV * make_float3( GvStructure::GvNode::unpackBrickAddress( brickParentAddressEnc ) )
+							+ brickChildNormalizedOffset * pVolumeTree.brickSizeInCacheNormalized.x;
+
+			if ( brickChildAddressEnc )
+			{
+				//pBrickSampler.mipMapOn = true; // "true" is not sufficient :  when non parent, program is very slow.
+				pBrickSampler._mipMapOn = ( brickParentAddressEnc == 0 ) ? false : true;
+
+				pBrickSampler._brickChildPosInPool = make_float3( GvStructure::GvNode::unpackBrickAddress( brickChildAddressEnc ) ) * pVolumeTree.brickCacheResINV;
+			}
+			else
+			{
+				pBrickSampler._mipMapOn = false;
+				pBrickSampler._brickChildPosInPool  = pBrickSampler._brickParentPosInPool;
+				pBrickSampler._scaleTree2BrickPool *= brickChildNormalizedScale;
+			}
+		}
+		
+	}
+
+	/******************************************************************************
+	 * Descent in volume tree until max depth is reach or current traversed node has no subnodes.
+	 * Perform a descent in a volume tree from a starting node tile address, until a max depth
+	 * Given a 3D sample position, 
+	 *
+	 * @param pVolumeTree The volume tree on which descent in done
+	 * @param pMaxDepth Max depth of the descent
+	 * @param pSamplePos 3D sample position
+	 * @param pNodeTileAddress ...
+	 * @param pNode ...
+	 * @param pNodeSize ...
+	 * @param pNodePos ...
+	 * @param pNodeDepth ...
+	 * @param pBrickAddressEnc ...
+	 * @param pBrickPos ...
+	 * @param pBrickScale ...
+	 ******************************************************************************/
+	template< class VolumeTreeKernelType >
+	__device__
+	inline void descentOctreeSimple( VolumeTreeKernelType& pVolumeTree, uint pMaxDepth, float3 pSamplePos,
+		uint pNodeTileAddress, GvStructure::GvNode& pNode, float& pNodeSize, float3& pNodePos, uint& pNodeDepth,
+		uint& pBrickAddressEnc, float3& pBrickPos, float& pBrickScale )
+	{
+		////descent////
+
+		float nodeSizeInv = 1.0f;
+
+		// WARNING uint nodeAddress;
+		pBrickAddressEnc = 0;
+
+		// Descent in volume tree until max depth is reach or current traversed node has no subnodes
+		int i = 0;
+		do
+		{
+			pNodeSize	*= 1.0f / (float)VolumeTreeKernelType::NodeResolution::maxRes;
+			nodeSizeInv	*= (float)VolumeTreeKernelType::NodeResolution::maxRes;
+
+			// Retrieve current voxel position
+			uint3 curVoxel = make_uint3( nodeSizeInv * ( pSamplePos - pNodePos ) );
+			uint curVoxelLinear = VolumeTreeKernelType::NodeResolution::toFloat1( curVoxel );
+
+			float3 nodeposloc = make_float3( curVoxel ) * pNodeSize;
+			pNodePos = pNodePos + nodeposloc;
+
+			// Retrieve pNode info (child and data addresses) from pNodeTileAddress address and curVoxelLinear offset
+			pVolumeTree.fetchNode( pNode, pNodeTileAddress, curVoxelLinear );
+
+			if ( pNode.hasBrick() )
+			{
+				pBrickAddressEnc = pNode.getBrickAddressEncoded();
+				pBrickPos = make_float3( 0.0f );
+				pBrickScale = 1.0f;
+			}
+			else
+			{
+				pBrickScale = pBrickScale * 0.5f;
+				pBrickPos += make_float3( curVoxel ) * pBrickScale;
+			}
+
+			pNodeTileAddress = pNode.getChildAddress().x;
+			i++;
+		}
+		while ( ( i < pMaxDepth ) && pNode.hasSubNodes() );
+
+		pNodeDepth = i;
+
+		//i -= 1;		// <== TODO : don't seem to be used anymore, remove it
+	}
+
+	/******************************************************************************
+	 * Descent in volume tree until max depth is reach or current traversed node has no subnodes.
+	 * Perform a descent in a volume tree from a starting node tile address, until a max depth
+	 * Given a 3D sample position, 
+	 *
+	 * @param pVolumeTree The volume tree on which descent in done
+	 * @param pMaxDepth Max depth of the descent
+	 * @param pSamplePos 3D sample position
+	 * @param pNodeTileAddress ...
+	 * @param pNode ...
+	 * @param pNodeSize ...
+	 * @param pNodePos ...
+	 * @param pNodeDepth ...
+	 * @param pBrickAddressEnc ...
+	 * @param pBrickPos ...
+	 * @param pBrickScale ...
+	 ******************************************************************************/
+	//template< class VolumeTreeKernelType >
+	//__device__
+	//inline void getNodeFather( VolumeTreeKernelType& pVolumeTree, uint pMaxDepth, float3 pSamplePos,
+	//	uint pNodeTileAddress, GvStructure::OctreeNode& pNode, float& pNodeSize, float3& pNodePos, uint& pNodeDepth,
+	//	uint& pBrickAddressEnc, float3& pBrickPos, float& pBrickScale )
+	//{
+	//	// Descent in the structure
+
+	//	float nodeSizeInv = 1.0f;
+
+	//	// WARNING uint nodeAddress;
+	//	pBrickAddressEnc = 0;
+
+	//	// Descent in volume tree until max depth is reach or current traversed node has no subnodes
+	//	int i = 0;
+	//	do
+	//	{
+	//		pNodeSize	*= 1.0f / (float)VolumeTreeKernelType::NodeResolution::maxRes;
+	//		nodeSizeInv	*= (float)VolumeTreeKernelType::NodeResolution::maxRes;
+
+	//		// Retrieve current voxel position
+	//		uint3 curVoxel = make_uint3( nodeSizeInv * ( pSamplePos - pNodePos ) );
+	//		uint curVoxelLinear = VolumeTreeKernelType::NodeResolution::toFloat1( curVoxel );
+
+	//		float3 nodeposloc = make_float3( curVoxel ) * pNodeSize;
+	//		pNodePos = pNodePos + nodeposloc;
+
+	//		// Retrieve pNode info (child and data addresses) from pNodeTileAddress address and curVoxelLinear offset
+	//		pVolumeTree.fetchOctreeNode( pNode, pNodeTileAddress, curVoxelLinear );
+
+	//		if ( pNode.hasBrick() )
+	//		{
+	//			pBrickAddressEnc = pNode.getBrickAddressEncoded();
+	//			pBrickPos = make_float3( 0.0f );
+	//			pBrickScale = 1.0f;
+	//		}
+	//		else
+	//		{
+	//			pBrickScale = pBrickScale * 0.5f;
+	//			pBrickPos += make_float3( curVoxel ) * pBrickScale;
+	//		}
+
+	//		pNodeTileAddress = pNode.getChildAddress().x;
+	//		i++;
+	//	}
+	//	while ( ( i < pMaxDepth ) && pNode.hasSubNodes() );
+
+	//	pNodeDepth = i;
+
+	//	i -= 1;		// <== TODO : don't seem to be used anymore, remove it
+	//}
+
+	/******************************************************************************
+	 * Descent in data structure (in general octree) until max depth is reach or current traversed node has no subnodes,
+	 * or cone aperture is greater than voxel size.
+	 *
+	 * @param pVolumeTree the data structure
+	 * @param pGpuCache the cache
+	 * @param node a node that user has to provide. It will be filled with the final node of the descent
+	 * @param pSamplePosTree A given position in tree
+	 * @param pConeAperture A given cone aperture
+	 * @param pNodeSizeTree the returned node size
+	 * @param pSampleOffsetInNodeTree the returned sample offset in node tree
+	 * @param pBrickSampler The sampler object used to sample data in the data structure, it will be initialized after the descent
+	 * @param pRequestEmitted a returned flag to tell wheter or not a request has been emitted during descent
+	 ******************************************************************************/
+	template< class TVolTreeKernelType >
+	__device__
+	inline void getNodeFather( TVolTreeKernelType& pVolumeTree, GvStructure::GvNode& pNode, const float3 pSamplePosTree, const uint pMaxNodeDepth )
+	{
+		// Useful variables initialization
+		uint nodeDepth = 0;
+		float3 nodePosTree = make_float3( 0.0f );
+		float nodeSizeTree = static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		float nodeSizeTreeInv = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		
+		// Initialize the address of the first node in the "node pool".
+		// While traversing the data structure, this address will be
+		// updated to the one associated to the current traversed node.
+		// It will be used to fetch info of the node stored in then "node pool".
+		uint nodeTileAddress = pVolumeTree._rootAddress;
+
+		// Traverse the data structure from root node
+		// until a descent criterion is not fulfilled anymore.
+		do
+		{
+			// [ 1 ] - Update size parameters
+			nodeSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current node size
+			nodeSizeTreeInv		*= static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );			// current node resolution (nb nodes in a dimension)
+
+			// [ 2 ] - Update node info
+			//
+			// The goal is to fetch info of the current traversed node from the "node pool"
+			uint3 nodeChildCoordinates = make_uint3( nodeSizeTreeInv * ( pSamplePosTree - nodePosTree ) );
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates );// & nodeChildAddressMask;
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+			nodePosTree = nodePosTree + nodeSizeTree * make_float3( nodeChildCoordinates );
+			// Try to retrieve node from the node pool given its address
+			//pVolumeTree.fetchOctreeNode( pNode, nodeTileAddress, nodeChildAddressOffset );
+			pVolumeTree.fetchNode( pNode, nodeAddress );
+
+			nodeTileAddress = pNode.getChildAddress().x;
+
+			// Update depth
+			nodeDepth++;
+		}
+		while ( ( nodeDepth <= pMaxNodeDepth ) && pNode.hasSubNodes() );	// END of the data structure traversal
+	}
+
+#endif

@@ -1,0 +1,23 @@
+// volumeTree.hglsl
+#ifndef _PRINTF_HGLSL_
+#define _PRINTF_HGLSL_
+
+int bufferPos = 0;
+
+uniform layout(size1x32) imageBuffer d_textBuffer;
+
+void putFloat(float f)
+{
+	imageStore(d_textBuffer, bufferPos, vec4(f, f, f, f));
+	bufferPos = bufferPos + 1;
+}
+
+void putFloat3(vec3 f)
+{
+	imageStore(d_textBuffer, bufferPos + 0, f.xxxx);
+    imageStore(d_textBuffer, bufferPos + 1, f.yyyy);
+    imageStore(d_textBuffer, bufferPos + 2, f.zzzz);
+	bufferPos = bufferPos + 3;
+}
+
+#endif // !_PRINTF_HGLSL_

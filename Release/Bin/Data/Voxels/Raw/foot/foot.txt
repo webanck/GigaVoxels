@@ -1,0 +1,9 @@
+http://www.gris.uni-tuebingen.de/edu/areas/scivis/volren/datasets/datasets.html
+
+All datasets are binary, storing 8bit voxels for all slices, for all scanlines, and for all voxels.
+
+Name Foot
+Size 256x256x256
+Spacing 1:1:1
+Description Rotational C-arm x-ray scan of a human foot. Tissue and bone are present in the dataset.
+Courtesy Philips Research, Hamburg, Germany.

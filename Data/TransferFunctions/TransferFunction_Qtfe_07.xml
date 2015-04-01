@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Qtfe>
+  <Function>
+    <point x="0" y="0"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Function>
+    <point x="0" y="0"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Function>
+    <point x="0" y="0"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Function>
+    <point x="0" y="0"/>
+    <point x="1" y="1"/>
+  </Function>
+  <Output G="1" R="0" A="3" B="2"/>
+</Qtfe>

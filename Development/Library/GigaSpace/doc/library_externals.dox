@@ -1,0 +1,101 @@
+/** \page ExternalLibraries External Libraries
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ * This page lists all GigaVoxels external libraries.
+ *
+ * \li GPU Computing
+ * - \ref subsection_CUDA
+ * - \ref subsection_Thrust
+ * - \ref subsection_CUDPP
+ * \li Programming
+ * - \ref subsection_Loki
+ * \li GUI
+ * - \ref subsection_Qt
+ * - \ref subsection_QGLViewer
+ * \li Dealing with 3D model formats
+ * - \ref subsection_Assimp
+ *
+ * <hr>
+ *
+ * @section ExternalLibrariesList_Section List of external libraries
+ *
+ * \subsection subsection_CUDA CUDA
+ *
+ * CUDA is a parallel computing platform and programming model invented by NVIDIA. It enables dramatic increases in computing performance by harnessing the power of the graphics processing unit (GPU).
+ *
+ * Website : <a href="http://www.nvidia.com/object/cuda_home_new.html">CUDA</a>
+ *
+ * \image html cuda_logo.png
+ *
+ * <hr>
+ *
+ * \subsection subsection_Thrust Thrust
+ *
+ * Thrust is a parallel algorithms library which resembles the C++ Standard Template Library (STL). Thrust's high-level interface greatly enhances developer productivity while enabling performance portability between GPUs and multicore CPUs. Interoperability with established technologies (such as CUDA, TBB and OpenMP) facilitates integration with existing software. Develop high-performance applications rapidly with Thrust! 
+ *
+ * Website : <a href="http://code.google.com/p/thrust/">Thrust</a>
+ *
+ * \image html thrust_logo.png
+ *
+ * <hr>
+ *
+ * \subsection subsection_CUDPP CUDPP
+ *
+ * CUDPP is the CUDA Data Parallel Primitives Library. CUDPP is a library of data-parallel algorithm primitives such as parallel prefix-sum (scan), parallel sort and parallel reduction. Primitives such as these are important building blocks for a wide variety of data-parallel algorithms, including sorting, stream compaction, and building data structures such as trees and summed-area tables. CUDPP runs on processors that support CUDA.
+ *
+ * Website : <a href="http://code.google.com/p/cudpp/">CUDPP</a>
+ *
+ * <hr>
+ *
+ * \subsection subsection_Loki Loki
+ *
+ * Loki is a C++ library of designs, containing flexible implementations of common design patterns and idioms. 
+ *
+ * Website : <a href="http://loki-lib.sourceforge.net/">Loki</a>
+ *
+ * <hr>
+ *
+ * \subsection subsection_Assimp Assimp
+ *
+ * Open Asset Import Library (short name: Assimp) is a portable Open Source library to import various well-known 3D model formats in a uniform manner. The most recent version also knows how to export 3d files and is therefore suitable as general-purpose 3D model converter.
+ *
+ * Website : <a href="http://assimp.sourceforge.net/">Assimp</a>
+ *
+ * <hr>
+ *
+ * \subsection subsection_Qt Qt
+ *
+ * Qt is a cross-platform application and UI framework for developers using C++ or QML, a CSS & JavaScript like language. Qt Creator is the supporting Qt IDE.
+ *
+ * Website : <a href="http://qt-project.org/">Qt</a>
+ *
+ * \image html qt_logo.png
+ *
+ * <hr>
+ *
+ * \subsection subsection_QGLViewer QGLViewer
+ *
+ * libQGLViewer is a C++ library based on Qt that eases the creation of OpenGL 3D viewers. 
+ *
+ * Website : <a href="http://www.libqglviewer.com/">QGLViewer</a>
+ *
+ * \image html qglviewer_logo.png
+ *
+ * <hr>
+ *
+ * \subsection subsection_CMake CMake
+ *
+ * Welcome to CMake, the cross-platform, open-source build system. CMake is a family of tools designed to build, test and package software. CMake is used to control the software compilation process using simple platform and compiler independent configuration files. CMake generates native makefiles and workspaces that can be used in the compiler environment of your choice. 
+ *
+ * Website : <a href="http://www.cmake.org/">CMake</a>
+ *
+ * \image html cmake_logo.png
+ *
+ * <hr>
+ *
+ * [ OpenGL ]
+ *
+ */
+ 

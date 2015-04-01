@@ -1,0 +1,328 @@
+// Host defines
+#define NUM_THREADS 1
+#define STR_SIZE 100000
+
+// Includes
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
+#include <iostream>
+
+// GPU Kernels declarations - declare as include
+#include "RLE_kernel.cu"
+
+void RLEcomp( const unsigned char * cpu_idata, unsigned char * cpu_idata_RLE) 
+{
+
+	// Compression RLE
+	uint brickOffsetLinear = 1;
+	uint count = 0;
+	unsigned char oldDensity = cpu_idata[0];
+	uint nbElem = 0;
+	bool outOfMem = false;
+
+	for ( int offset = 0; offset < STR_SIZE; offset++ ) {
+		if (brickOffsetLinear < STR_SIZE) {
+			/* RLE Version */
+			if ( cpu_idata[offset] == oldDensity && count < 255 ) {
+				count++;
+			} else {
+				// Set the iteration of the color
+				cpu_idata_RLE[brickOffsetLinear] = count;
+				brickOffsetLinear++;
+				// Set the color value
+				cpu_idata_RLE[brickOffsetLinear] = oldDensity;
+				brickOffsetLinear++;
+
+				oldDensity = cpu_idata[offset];
+				count = 1;
+				nbElem++;
+			}
+		} else {
+			std::cout << "COUOCU" << std::endl;
+			offset = STR_SIZE;
+			memcpy(cpu_idata_RLE, cpu_idata, STR_SIZE * sizeof(unsigned char));
+			
+			// On met le bit de poids faible a 0
+			cpu_idata_RLE[1] &= ~(1 << 0);
+			return;
+			outOfMem = true;
+		}
+	}
+	// Save the last value
+	// Set the iteration of the color
+	cpu_idata_RLE[brickOffsetLinear] = count;
+	brickOffsetLinear++;
+	// Set the color value
+	cpu_idata_RLE[brickOffsetLinear] = oldDensity;
+	brickOffsetLinear++;
+	count = 1;
+	nbElem++;
+
+	cpu_idata_RLE[0] = nbElem;
+	std::cout << nbElem << std::endl;
+	// Fin de la compression RLE
+}
+
+bool RLEcompOffset( const unsigned char * cpu_idata, unsigned char * cpu_idata_RLE, unsigned int * offsetRLE) 
+{
+
+	// Compression RLE
+	uint brickLinear = 0;
+	uint brickOffsetLinear = 1;
+	uint count = 0;
+	unsigned char oldDensity = cpu_idata[0];
+	uint nbElem = 0;
+	bool outOfMem = false;
+
+	for ( int offset = 0; offset < STR_SIZE; offset++ ) {
+		if (brickOffsetLinear < STR_SIZE) {
+			/* RLE Version */
+			if ( cpu_idata[offset] == oldDensity ) {
+				count++;
+			} else {
+				// Set the iteration of the color
+				offsetRLE[brickOffsetLinear] = count;
+				brickOffsetLinear++;
+				// Set the color value
+				cpu_idata_RLE[brickLinear] = oldDensity;
+				brickLinear++;
+
+				oldDensity = cpu_idata[offset];
+				count = 1;
+				nbElem++;
+			}
+		} else {
+			offset = STR_SIZE;
+			outOfMem = true;
+		}
+	}
+	// Save the last value
+	// Set the iteration of the color
+	offsetRLE[brickOffsetLinear] = count;
+	brickOffsetLinear++;
+	// Set the color value
+	cpu_idata_RLE[brickLinear] = oldDensity;
+	brickLinear++;
+	count = 1;
+	nbElem++;
+
+	offsetRLE[0] = nbElem;
+	// Fin de la compression RLE
+	return outOfMem;
+}
+
+
+void sameArray (const unsigned char *cpu_idata, const unsigned char *cpu_odata) 
+{
+	bool isCop = true;
+	for (int i = 0; i < STR_SIZE; i++) {
+		if (cpu_idata[i] != cpu_odata[i]) {
+			std::cout << "/!\\ Difference au " << i << "eme element " << std::endl;
+			//for (int k = 0; k < 100; k++)
+			std::cout << "/!\\ " << (int)cpu_idata[i] << " != " << (int)cpu_odata[i] << std::endl;
+			isCop = false;
+			break;
+		}
+	}
+
+	if (isCop) {
+		std::cout << "RECOPIE OK" << std::endl;
+	} else { 
+		std::cout << "RECOPIE KO" << std::endl;
+	}
+}
+
+
+int main( int argc, char** argv)
+{
+	cudaSetDeviceFlags( cudaDeviceMapHost );
+
+	// Host variables
+	unsigned char *cpu_idata, *cpu_odata, *cpu_idata_RLE, *cpu_idata_RLEOffset;
+	cpu_idata = new unsigned char[STR_SIZE];
+	cpu_idata_RLE = new unsigned char[STR_SIZE];
+	cpu_idata_RLEOffset = new unsigned char[STR_SIZE];
+	cpu_odata = new unsigned char[STR_SIZE];
+
+	// Init host variable
+	for (int i = 0; i < STR_SIZE; i++)
+		cpu_idata[i] = i/10;
+
+	bool outOfMem = false;
+	
+
+	// GPU variables
+	unsigned char *gpu_input, *gpu_output, *gpu_map, *gpu_mapDevice;
+	unsigned int *gpu_offsetMap, *gpu_offsetMapDevice;
+
+	cudaMalloc( (void**)&gpu_input, STR_SIZE * sizeof(unsigned char) );
+	
+	// Test de recopie en Memory map
+	cudaHostAlloc( (void**)&gpu_map, STR_SIZE * sizeof(unsigned char), cudaHostAllocMapped | cudaHostAllocWriteCombined );
+	cudaHostGetDevicePointer( (void**)&gpu_mapDevice, (void*)gpu_map, 0);
+
+	// Offset pour la RLE
+	cudaHostAlloc( (void**)&gpu_offsetMap, STR_SIZE * sizeof(unsigned int), cudaHostAllocMapped | cudaHostAllocWriteCombined );
+	cudaHostGetDevicePointer( (void**)&gpu_offsetMapDevice, (void*)gpu_offsetMap, 0);
+	
+	cudaMalloc( (void**)&gpu_output, STR_SIZE * sizeof(unsigned char) );
+	std::cout << "INIT VAR OK" << std::endl;
+
+	/* Compression classique */
+	RLEcomp( cpu_idata, cpu_idata_RLE);
+	/* Compression avec tableau d'offset */
+	RLEcompOffset( cpu_idata, cpu_idata_RLEOffset, gpu_offsetMap );
+
+	std::cout << "COMPRESSION OK" << std::endl; 
+	
+	for (int i = 0; i < STR_SIZE; i++)
+		gpu_map[i] = cpu_idata[i];
+
+
+	std::cout << "TRANSFERT CPU -> GPU OK" << std::endl;
+
+	// Setup kernel execution parameters
+	dim3 blockSize (1, 1000, 1 );
+	dim3 grid (100, 1, 1 );
+
+	// Execute the kernel on the GPU
+	int it = 1;
+	cudaEvent_t start, stop;
+	float elapsedTime, totalTime = 0;
+	
+	cudaEventCreate( &start );
+	cudaEventCreate( &stop );
+	
+	/***
+	 * Copy Array
+	 ***/
+
+	for (int i = 0; i < it; i++) {
+		cudaEventRecord(start, 0);
+
+		cudaMemcpy( gpu_input, cpu_idata, STR_SIZE * sizeof(unsigned char), cudaMemcpyHostToDevice );
+
+		kernel<<< grid, blockSize >>>(STR_SIZE, gpu_input, gpu_output);
+
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize( stop );
+		cudaEventElapsedTime( &elapsedTime, start, stop);
+		totalTime += elapsedTime;
+	}
+	
+	printf("Time = %1.3f ms\n", totalTime/it);
+	// Copy result from GPU to CPU
+	cudaMemcpy( cpu_odata, gpu_output, STR_SIZE * sizeof(unsigned char), cudaMemcpyDeviceToHost );
+	sameArray (cpu_idata, cpu_odata);
+	totalTime = 0;
+	
+	/***
+	 * Copy array with mapped memory
+	 ***/
+
+	for (int i = 0; i < it; i++) {
+		cudaEventRecord(start, 0);
+
+		kernel<<< grid, blockSize >>>(STR_SIZE, gpu_mapDevice, gpu_output);
+
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize( stop );
+		cudaEventElapsedTime( &elapsedTime, start, stop);
+		totalTime += elapsedTime;
+	}
+
+	printf("Time memory mapped = %1.3f ms\n", totalTime/it);
+	// Copy result from GPU to CPU
+	cudaMemcpy( cpu_odata, gpu_output, STR_SIZE * sizeof(unsigned char), cudaMemcpyDeviceToHost );
+	sameArray (cpu_idata, cpu_odata);
+	totalTime = 0;
+
+	/***
+	 * Copy array with RLE
+	 ***/
+
+	for (int i = 0; i < it; i++) {
+		cudaEventRecord(start, 0);
+
+		cudaMemcpy( gpu_input, cpu_idata_RLE, STR_SIZE * sizeof(unsigned char), cudaMemcpyHostToDevice );
+		RLE_kernel<<< grid, blockSize >>>(STR_SIZE, gpu_input, gpu_output);
+
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize( stop );
+		cudaEventElapsedTime( &elapsedTime, start, stop);
+		totalTime += elapsedTime;
+	}
+	
+	printf("Time RLE = %1.3f ms\n", totalTime/it);	
+	// Copy result from GPU to CPU
+	cudaMemcpy( cpu_odata, gpu_output, STR_SIZE * sizeof(unsigned char), cudaMemcpyDeviceToHost );
+	sameArray (cpu_idata, cpu_odata);
+	totalTime = 0;
+
+	/***
+	 * Copy array with RLE atomic
+	 ***/
+
+	for (int i = 0; i < it; i++) {
+		cudaEventRecord(start, 0);
+
+		cudaMemcpy( gpu_input, cpu_idata_RLE, STR_SIZE * sizeof(unsigned char), cudaMemcpyHostToDevice );
+		RLE_atomic_kernel<<< grid, blockSize >>>(STR_SIZE, gpu_input, gpu_output);
+
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize( stop );
+		cudaEventElapsedTime( &elapsedTime, start, stop);
+		totalTime += elapsedTime;
+	}
+	
+	printf("Time RLE atomic = %1.3f ms\n", totalTime/it);
+	// Copy result from GPU to CPU
+	cudaMemcpy( cpu_odata, gpu_output, STR_SIZE * sizeof(unsigned char), cudaMemcpyDeviceToHost );
+	sameArray (cpu_idata, cpu_odata);
+	totalTime = 0;
+
+	/***
+	 * Copy array with RLE atomic with offset
+	 ***/
+
+	for (int i = 0; i < it; i++) {
+		cudaEventRecord(start, 0);
+
+		cudaMemcpy( gpu_input, cpu_idata_RLEOffset, STR_SIZE * sizeof(unsigned char), cudaMemcpyHostToDevice );
+		RLE_atomic_kernel<<< grid, blockSize >>>(STR_SIZE, gpu_input, gpu_offsetMapDevice, gpu_output);
+
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize( stop );
+		cudaEventElapsedTime( &elapsedTime, start, stop);
+		totalTime += elapsedTime;
+	}
+	
+	printf("Time RLE atomic with offset = %1.3f ms\n", totalTime/it);
+	// Copy result from GPU to CPU
+	cudaMemcpy( cpu_odata, gpu_output, STR_SIZE * sizeof(unsigned char), cudaMemcpyDeviceToHost );
+	sameArray (cpu_idata, cpu_odata);
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
+	std::cout << "TRANSFERT GPU -> CPU OK" << std::endl;
+
+
+
+	// Free up CPU memory
+	free(cpu_odata);
+	free(cpu_idata);
+	free(cpu_idata_RLE);
+	free(cpu_idata_RLEOffset);
+
+	// Free up GPU memory
+	cudaFree(gpu_input); 
+	cudaFree(gpu_output); 
+	cudaFree(gpu_map); 
+	cudaFree(gpu_mapDevice);
+	cudaFree(gpu_offsetMap); 
+	cudaFree(gpu_offsetMapDevice);
+}
+

@@ -1,0 +1,414 @@
+//BVHTrianglesGPUCache.hcu
+#ifndef BVHTrianglesGPUCache_hcu
+#define BVHTrianglesGPUCache_hcu
+
+// Cuda SDK
+#include <helper_math.h>
+
+//#include "RendererBVHTrianglesCommon.h"
+
+/////////////////////////////////////////////////////////
+//==================== CONSTANTS ======================//
+/////////////////////////////////////////////////////////
+
+/**
+ * Time stamp array for node tiles
+ *
+ * VTC : volume tree cache
+ * NT : node tile
+ */
+__constant__ GvCore::Array3DKernelLinear< uint > k_VTC_NTTimeStampArray;
+
+/**
+ * Time stamp array for bricks
+ *
+ * VTC : volume tree cache
+ * B : brick
+ */
+__constant__ GvCore::Array3DKernelLinear< uint > k_VTC_BTimeStampArray;
+
+/**
+ * Buffer of requests
+ *
+ * VTC : volume tree cache
+ */
+// Generic version
+__constant__ GvCore::Array3DKernelLinear< uint > k_VTC_UpdateBufferArray;	// Unified path
+
+///////////////////////////////////////////////////////
+//=================Kernel functions==================//
+///////////////////////////////////////////////////////
+
+//#if USE_LINEAR_VOLTREE_ADDRESS
+//__device__
+//void setVolTreeNodeTileUsage(uint nodeTileAddressNode)
+//{
+//	uint nodeTileAddress=nodeTileAddressNode/(VT_NODE_RES*VT_NODE_RES*VT_NODE_RES);
+//	k_VTC_NTTimeStampArray.set(nodeTileAddress, k_currentTime);
+//}
+//#endif
+//
+//__device__
+//void setVolTreeNodeTileUsage(uint3 nodeTileAddressNode)
+//{
+//#if USE_LINEAR_VOLTREE_ADDRESS==0
+//	uint3 nodeTileAddress=nodeTileAddressNode/make_uint3(VT_NODE_RES);
+//	k_VTC_NTTimeStampArray.set(nodeTileAddress, k_currentTime);
+//#else
+//	uint nodeTileAddress=nodeTileAddressNode.x/(VT_NODE_RES*VT_NODE_RES*VT_NODE_RES);
+//	k_VTC_NTTimeStampArray.set(nodeTileAddress, k_currentTime);
+//#endif
+//}
+//__device__
+//void setBrickUsage(uint3 brickAddress)
+//{
+//	uint3 brickElemAddress=brickAddress/make_uint3(VT_BRICKS_RES_WITH_BORDER);
+//	k_VTC_BTimeStampArray.set(brickElemAddress, k_currentTime);
+//}
+//
+//__device__
+//void volTreeSubDivRequest(uint nodeAddressEnc){
+//	uint3 nodeAddress=make_uint3(nodeAddressEnc, 0,0);
+//	//k_VTC_SubDivAddressArray.set(nodeAddress, nodeAddressEnc);
+//	k_VTC_UpdateBufferArray.set(nodeAddress, (nodeAddressEnc & 0x3FFFFFFF) | 0x40000000);
+//}
+//
+//__device__
+//void volTreeLoadRequest(uint nodeAddressEnc){
+//	uint3 nodeAddress=make_uint3(nodeAddressEnc, 0,0);
+//	//k_VTC_LoadAddressArray.set(nodeAddress, nodeAddressEnc );
+//	k_VTC_UpdateBufferArray.set(nodeAddress, (nodeAddressEnc & 0x3FFFFFFF) | 0x80000000);
+//}
+
+//// BVH ////
+
+/******************************************************************************
+ * Update timestamp usage information of an element (node tile)
+ * with current time (i.e. current rendering pass)
+ * given its address in its corresponding pool (node).
+ *
+ * @param nodeTileAddressNode The address of the element for which we want to update usage information
+ ******************************************************************************/
+__device__
+void setBVHNodeTileUsage( uint nodeTileAddressNode )
+{
+	const uint nodeTileAddress = nodeTileAddressNode / 2;
+
+	k_VTC_NTTimeStampArray.set( nodeTileAddress, k_currentTime );
+}
+
+/******************************************************************************
+ * Update buffer with a load request for a given node.
+ *
+ * @param nodeAddressEnc the encoded node address
+ ******************************************************************************/
+__device__
+void bvhDataRequest( uint nodeAddressEnc )
+{
+	const uint3 nodeAddress = make_uint3( nodeAddressEnc, 0, 0 );
+
+	k_VTC_UpdateBufferArray.set( nodeAddress, ( nodeAddressEnc & 0x3FFFFFFF ) | 0x80000000 );
+}
+
+/******************************************************************************
+ * Update timestamp usage information of an element (brick)
+ * with current time (i.e. current rendering pass)
+ * given its address in its corresponding pool (brick).
+ *
+ * @param dataPageAddress The address of the element for which we want to update usage information
+ ******************************************************************************/
+__device__
+void setDataPageUsage( uint dataPageAddress )
+{
+	k_VTC_BTimeStampArray.set( dataPageAddress, k_currentTime );
+}
+
+///////////////////////////////////////////////////////
+//===================FUNCTORS====================//
+///////////////////////////////////////////////////////
+
+//// Invalidations
+
+/**
+ * @struct VolTreeFlagInvalidations
+ *
+ * @brief VolTreeFlagInvalidations is a functor used to invalidate node tiles
+ *
+ * It resets a node tile's time stamp to 1
+ */
+struct VolTreeFlagInvalidations
+{
+	__device__
+	void operator()( const uint nodeTileAddress )
+	{
+		// Flag timestamp for invalidation
+		//
+		// Volume tree cache - node tile - time stamp array
+		k_VTC_NTTimeStampArray.set( nodeTileAddress, 1 );
+	}
+};
+
+#if 0 //to modify
+__global__
+void VolTreeInvalidateNodePointers(uint3 nodeTileRes){
+	uint lineSize=__umul24(blockDim.x, gridDim.x);
+	uint elem= threadIdx.x + __umul24(blockIdx.x, blockDim.x) + __umul24(blockIdx.y, lineSize);
+
+	uint voltreeChildPointer;
+
+	voltreeChildPointer=k_volumeTreeChildArray.get(elem);
+
+	if(voltreeChildPointer!=0){
+		uint3 nodeAddress=VolTreeNode::unpackNodeAddress(voltreeChildPointer);
+		uint3 nodeTileAddress=(nodeAddress/nodeTileRes /*make_uint3(VT_NODE_RES)*/);
+
+		if(k_VTC_NTTimeStampArray.get(nodeTileAddress)==1){
+			k_volumeTreeChildArray.set(elem, voltreeChildPointer & 0x40000000);
+		}
+	}
+}
+#endif
+
+/**
+ * @struct BricksFlagInvalidations
+ *
+ * @brief BricksFlagInvalidations is a functor used to invalidate bricks
+ *
+ * It resets a brick's time stamp to 1
+ */
+struct BricksFlagInvalidations
+{
+	__device__
+	void operator()( const uint brickElemAddress )
+	{
+		// Flag timestamp for invalidation
+		//
+		// Volume tree cache - brick - time stamp array
+		k_VTC_BTimeStampArray.set( brickElemAddress, 1 );
+	}
+};
+
+#if 0	//To be modified
+__global__
+void VolTreeInvalidateBrickPointers(){
+	uint lineSize=__umul24(blockDim.x, gridDim.x);
+	uint elem= threadIdx.x + __umul24(blockIdx.x, blockDim.x) + __umul24(blockIdx.y, lineSize);
+
+	uint voltreeBrickPointer;
+
+	voltreeBrickPointer=k_volumeTreeDataArray.get(elem);
+
+	if(voltreeBrickPointer!=0){
+		uint3 brickAddress=VolTreeNode::unpackBrickAddress(voltreeBrickPointer);
+		uint3 elementAddress=(brickAddress/make_uint3(VT_BRICKS_RES_WITH_BORDER));
+
+		if(k_VTC_BTimeStampArray.get(elementAddress)==1){
+			k_volumeTreeDataArray.set(elem, 0);//voltreeBrickPointer & 0x40000000;
+		}
+	}
+}
+#endif
+
+/******************************************************************************
+ * KERNEL VolTreeInvalidateVertexPointers
+ *
+ * ...
+ *
+ * @param gpuTreeBVH the data structure
+ * @param numElems The number of elements to process.
+ * @param hostAddressBuffer ...
+ ******************************************************************************/
+template< class GPUTreeBVHType >
+__global__
+void VolTreeInvalidateVertexPointers( GPUTreeBVHType gpuTreeBVH, uint numElems, uint* hostAddressBuffer )
+{
+	uint lineSize = __umul24( blockDim.x, gridDim.x );
+	uint elem = threadIdx.x + __umul24( blockIdx.x, blockDim.x ) + __umul24( blockIdx.y, lineSize );
+
+	if ( elem < numElems )
+	{
+#if 1
+		uint nodeAddress = elem;
+		uint nodeSubNodeDataIdx;
+
+		// Retrieve current element's associated node from node pool
+		uint* volumeTreeBVHArrayUIPtr = (uint*)gpuTreeBVH._volumeTreeBVHArray.getPointer( 0 );
+		nodeSubNodeDataIdx = volumeTreeBVHArrayUIPtr[ nodeAddress * VolTreeBVHNodeStorageUINT::numWords ];
+		
+		// Declare a node
+		VolTreeBVHNodeUser node;
+		node.subNodesDataIdx = nodeSubNodeDataIdx;
+
+		if ( node.isGPULink() && node.isDataType() && node.isLinkActive() )
+		{
+			// Retrieve associated brick address
+			uint vertexPageIdx = node.getDataIdx();
+
+			// Check if brick's time stamp is equal to 1
+			if ( k_VTC_BTimeStampArray.get( vertexPageIdx ) == 1 )
+			{
+				uint hostAddress = hostAddressBuffer[ vertexPageIdx ];
+
+				node.setDataIdx( hostAddress );
+				node.setCPULink();
+
+				// Update node pool
+				volumeTreeBVHArrayUIPtr[ nodeAddress * VolTreeBVHNodeStorageUINT::numWords ] = node.subNodesDataIdx;
+			}
+		}
+#endif
+	}
+}
+
+//struct not_zero {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//	  return x > 0;
+//	}
+//};
+//struct zero {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//	  return x == 0;
+//	}
+//};
+//
+//struct not_current_time {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//		return x!= k_currentTime;//==0;
+//	}
+//};
+//
+//struct not_marked {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//		return x==0;
+//	}
+//};
+//
+//struct marked {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//		return x!=0;
+//	}
+//};
+//
+//struct current_time {
+//	__host__ __device__
+//	bool operator()(const uint x) {
+//	  return x>0;
+//	}
+//};
+
+///////////////////
+// Synthetic Infos
+
+/******************************************************************************
+ * KERNEL SyntheticInfo_Update_DataWrite
+ *
+ * ...
+ *
+ * @param syntheticBuffer ...
+ * @param numElems The number of elements to process.
+ * @param lruElemAddressList ...
+ ******************************************************************************/
+__global__
+void SyntheticInfo_Update_DataWrite( uchar* syntheticBuffer, uint numElems, uint* lruElemAddressList )
+{
+	// Compute global element index
+	uint lineSize = __umul24( blockDim.x, gridDim.x );
+	uint elem = threadIdx.x + __umul24( blockIdx.x, blockDim.x ) + __umul24( blockIdx.y, lineSize );
+
+	// Check bounds (max number of elements to process)
+	if ( elem < numElems )
+	{
+		uint pageIdx = lruElemAddressList[ elem ];
+		uint syntheticIdx = pageIdx / SYNTHETIC_REDUC_FACTOR;
+
+		// Update buffer
+		syntheticBuffer[ syntheticIdx * 4 + 3 ] = 1;
+	}
+}
+
+/******************************************************************************
+ * KERNEL SyntheticInfo_Update_PageUsed
+ *
+ * ...
+ *
+ * @param syntheticBuffer ...
+ * @param numPageUsed The number of elements to process.
+ * @param usedPageList ...
+ ******************************************************************************/
+__global__
+void SyntheticInfo_Update_PageUsed( uchar* syntheticBuffer, uint numPageUsed, uint* usedPageList )
+{
+	// Compute global element index
+	uint lineSize = __umul24( blockDim.x, gridDim.x );
+	uint elem = threadIdx.x + __umul24( blockIdx.x, blockDim.x ) + __umul24( blockIdx.y, lineSize );
+
+	// Check bounds (max number of elements to process)
+	if ( elem < numPageUsed )
+	{
+		uint pageIdx = usedPageList[ elem ];
+		uint syntheticIdx = pageIdx / SYNTHETIC_REDUC_FACTOR;
+
+		// Update buffer
+		syntheticBuffer[syntheticIdx*4+0]=1;
+	}
+}
+
+/******************************************************************************
+ * KERNEL SyntheticInfo_Render
+ *
+ * ...
+ *
+ * @param syntheticBuffer ...
+ ******************************************************************************/
+__global__
+void SyntheticInfo_Render( GvCore::Array3DKernelLinear< uchar4 > syntheticBuffer )
+{
+	// Retrieve global pixel coordinates
+	uint2 pixelCoords;
+	pixelCoords.x = threadIdx.x + __umul24( blockIdx.x, blockDim.x );
+	pixelCoords.y = threadIdx.y + __umul24( blockIdx.y, blockDim.y );
+
+	// Compute global element index
+	uint elemIdx = pixelCoords.x + pixelCoords.y * ( blockDim.x * gridDim.x );
+
+	// Retrieve input number of elements
+	uint totalNumElems = syntheticBuffer.getResolution().x;
+
+	uchar4 pixelColor;
+
+	// Check bounds (max number of elements to process)
+	if ( elemIdx < totalNumElems )
+	{
+		uchar4 sval = syntheticBuffer.get( elemIdx );
+
+		if ( sval.w )
+		{
+			// red
+			pixelColor = make_uchar4( 255, 0, 0, 255 );
+		}
+		else if ( sval.x )
+		{
+			// green
+			pixelColor = make_uchar4( 0, 255, 0, 255 );
+		}
+		else
+		{
+			// black
+			pixelColor = make_uchar4( 0, 0, 0, 255 );
+		}
+	}
+	else
+	{	// white
+		pixelColor = make_uchar4( 255, 255, 255, 255 );
+	}
+
+	//k_renderViewContext.outFrameColor.get( pixelCoords ) = pixelColor;
+	GvRendering::setOutputColor( pixelCoords, pixelColor );
+}
+
+#endif

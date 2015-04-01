@@ -1,0 +1,130 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _SAMPLEVIEWER_H_
+#define _SAMPLEVIEWER_H_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// OpenGL
+#include <GL/glew.h>
+
+// QGLViewer
+#include <QGLViewer/qglviewer.h>
+#include <QKeyEvent>
+
+// Project
+#include "SampleCore.h"
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+// QGLViewer
+namespace qglviewer
+{
+	class ManipulatedFrame;
+}
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * @class SampleViewer
+ *
+ * @brief The SampleViewer class provides...
+ *
+ * ...
+ */
+class SampleViewer : public QGLViewer
+{
+
+	/**************************************************************************
+	 ***************************** PUBLIC SECTION *****************************
+	 **************************************************************************/
+
+public:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	SampleViewer();
+	virtual ~SampleViewer();
+
+	/**************************************************************************
+	 **************************** PROTECTED SECTION ***************************
+	 **************************************************************************/
+
+protected:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	virtual void init();
+	virtual void draw();
+	virtual void resizeGL(int width, int height);
+	virtual QSize sizeHint() const;
+	virtual void keyPressEvent(QKeyEvent *e);
+
+	/**************************************************************************
+	 ***************************** PRIVATE SECTION ****************************
+	 **************************************************************************/
+
+private:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	SampleCore *mSampleCore;
+	qglviewer::ManipulatedFrame* mLight1;
+
+	/******************************** METHODS *********************************/
+
+};
+
+/**************************************************************************
+ ***************************** INLINE SECTION *****************************
+ **************************************************************************/
+
+#endif // !_SAMPLEVIEWER_H_

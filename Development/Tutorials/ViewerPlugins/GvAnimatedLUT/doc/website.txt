@@ -1,0 +1,13 @@
+http://en.wikipedia.org/wiki/Color_cycling
+
+http://www.effectgames.com/effect/article.psp.html/joe/Old_School_Color_Cycling_with_HTML5
+
+http://www.effectgames.com/effect/article.psp.html/joe/Q_A_with_Mark_J_Ferrari
+
+Color Cycling :
+In computer graphics, a technique that simulates animation by continuously changing colors rather than moving the objects. Also called "color lookup table animation."
+
+GLSL example :
+https://gist.github.com/zackthehuman/4054347
+
+http://www.modejong.com/blog/post11_opengl_color_cycle/index.html

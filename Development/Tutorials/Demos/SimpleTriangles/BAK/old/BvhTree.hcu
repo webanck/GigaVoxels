@@ -1,0 +1,271 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2013 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * GigaVoxels is distributed under a dual-license scheme.
+ * You can obtain a specific license from Inria at gigavoxels-licensing@inria.fr.
+ * Otherwise the default license is the GPL version 3.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _GPU_Tree_BVH_hcu_
+#define _GPU_Tree_BVH_hcu_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// GigaVoxels
+#include <GvCore/Array3DGPULinear.h>
+#include <GvCore/GvCUDATexHelpers.h>
+
+#include "BVHTriangles.hcu"
+
+#include <cuda.h>
+#include "cutil_math.h"
+#include "RendererBVHTrianglesCommon.h"
+
+//#include "CUDATexHelpers.h"
+//#include "Array3DKernel.h"
+
+#include <loki/Typelist.h>
+#include <loki/HierarchyGenerators.h>
+#include <loki/TypeManip.h>
+#include <loki/NullType.h>
+
+#include "GPUTreeBVHCommon.h"
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+/**
+ * ...
+ */
+#define TEXDATAPOOL_BVHTRIANGLES 10
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+////////// DATA ARRAYS ///////////
+
+/**
+ * Node buffer
+ *
+ * Seems to be not used anymore
+ */
+texture< uint, 1, cudaReadModeElementType > volumeTreeBVHTexLinear;
+
+// FIXME
+//GPUPoolTextureReferences(TEXDATAPOOL_BVHTRIANGLES, 4, 1, BVHVertexPosType, cudaReadModeElementType);
+//GPUPoolTextureReferences(TEXDATAPOOL_BVHTRIANGLES, 4, 1, BVHVertexColorType, cudaReadModeElementType);
+
+/**
+ * 1D texture used to store user data (color)
+ */
+GPUPoolTextureReferences( TEXDATAPOOL_BVHTRIANGLES, 4, 1, uchar4, cudaReadModeElementType );
+/**
+ * 1D texture used to store user data (position)
+ */
+GPUPoolTextureReferences( TEXDATAPOOL_BVHTRIANGLES, 4, 1, float4, cudaReadModeElementType );
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * @struct BvhTreeKernel
+ *
+ * @brief The BvhTreeKernel struct provides ...
+ *
+ * @param DataTList Data type list provided by the user
+ * (exemple with a normal and a color by voxel : typedef Loki::TL::MakeTypelist< uchar4, half4 >::Result DataType;)
+ *
+ */
+template< class DataTList >
+struct BvhTreeKernel
+{
+	/**************************************************************************
+	 ***************************** PUBLIC SECTION *****************************
+	 **************************************************************************/
+
+	/****************************** INNER TYPES *******************************/
+
+	/**
+	 * Type definition of the data pool
+	 */
+	typedef typename GvCore::GPUPool_KernelPoolFromHostPool< GvCore::Array3DGPULinear, DataTList >::Result KernelPoolType;
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/**
+	 * Node pool
+	 */
+	GvCore::Array3DKernelLinear< VolTreeBVHNodeStorageUINT > _volumeTreeBVHArray;
+
+	/**
+	 * Data pool
+	 */
+	KernelPoolType dataPool;
+
+	/******************************** METHODS *********************************/
+
+	/**
+	 * ...
+	 */
+	template< int channel >
+	__device__
+	typename GvCore::DataChannelType< DataTList, channel >::Result getVertexData( uint address )
+	{
+		return dataPool.getChannel( Loki::Int2Type< channel >() ).get( address );
+	}
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void fetchBVHNode( VolTreeBVHNodeUser& resnode, uint address )
+	{
+		VolTreeBVHNode tempNodeUnion;
+
+		/*for(uint i=0; i<VolTreeBVHNodeStorageUINT::numWords; i++){
+			tempNodeUnion.storageUINTNode.words[i] =tex1Dfetch(volumeTreeBVHTexLinear, address*VolTreeBVHNodeStorageUINT::numWords+i);
+		}*/
+		tempNodeUnion.storageUINTNode = _volumeTreeBVHArray.get( address );
+
+		resnode	= tempNodeUnion.userNode;
+	}
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void parallelFetchBVHNode( uint Pid, VolTreeBVHNodeUser& resnode, uint address )
+	{
+		__shared__ VolTreeBVHNode tempNodeUnion;
+
+		if ( Pid < VolTreeBVHNodeStorageUINT::numWords )
+		{
+			//
+			//tempNodeUnion.storageUINTNode.words[Pid] =k_volumeTreeBVHArray.get(address).words[Pid];
+	#if 1
+			uint* arrayAddress = (uint*)_volumeTreeBVHArray.getPointer( 0 );
+			tempNodeUnion.storageUINTNode.words[ Pid ] = arrayAddress[ address * VolTreeBVHNodeStorageUINT::numWords + Pid ];
+	#else
+			tempNodeUnion.storageUINTNode.words[Pid] =tex1Dfetch(volumeTreeBVHTexLinear, address*VolTreeBVHNodeStorageUINT::numWords+Pid);
+	#endif
+		}
+
+		// Thread synchronization
+		__syncthreads();
+
+		///resnode	=tempNodeUnion.userNode;
+
+		if ( Pid == 0 )
+		{
+			resnode	= tempNodeUnion.userNode;
+		}
+
+		// Thread synchronization
+		__syncthreads();
+	}
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void parallelFetchBVHNodeTile( uint Pid, VolTreeBVHNodeUser* resnodetile, uint address )
+	{
+		// Shared memory
+		__shared__ VolTreeBVHNode tempNodeUnion;
+
+		if ( Pid < VolTreeBVHNodeStorageUINT::numWords * 2 )
+		{
+			uint* arrayAddress = (uint*)_volumeTreeBVHArray.getPointer( 0 );
+			uint* resnodetileUI = (uint*)resnodetile;
+
+			resnodetileUI[ Pid ] =  arrayAddress[ address * VolTreeBVHNodeStorageUINT::numWords + Pid ];
+		}
+
+		// Thread synchronization
+		__syncthreads();
+	}
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void writeBVHNode( const VolTreeBVHNodeUser& node, uint address )
+	{
+		VolTreeBVHNode tempNodeUnion;
+		tempNodeUnion.userNode = node;
+
+		// Update 
+		_volumeTreeBVHArray.set( address, tempNodeUnion.storageUINTNode );
+	}
+
+	/**
+	 * ...
+	 */
+	__device__
+	inline void parallelWriteBVHNode( uint Pid, const VolTreeBVHNodeStorage& node, uint address )
+	{
+		//Warning, no checking on Pid
+
+		VolTreeBVHNodeStorage* storageArrayPtr= (VolTreeBVHNodeStorage*)_volumeTreeBVHArray.getPointer();
+
+		storageArrayPtr[ address ].words[ Pid ] = node.words[ Pid ];
+	}
+
+	/**************************************************************************
+	 **************************** PROTECTED SECTION ***************************
+	 **************************************************************************/
+
+protected:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+	/**************************************************************************
+	 ***************************** PRIVATE SECTION ****************************
+	 **************************************************************************/
+
+private:
+
+	/****************************** INNER TYPES *******************************/
+
+	/******************************* ATTRIBUTES *******************************/
+
+	/******************************** METHODS *********************************/
+
+};
+
+#endif // !_GPU_Tree_BVH_hcu_

@@ -1,0 +1,41 @@
+<!DOCTYPE QGLVIEWER>
+<QGLViewer version="2.3.17">
+  <State stereo="false" cameraMode="revolve">
+    <foregroundColor red="180" blue="180" green="180"/>
+    <backgroundColor red="51" blue="51" green="51"/>
+  </State>
+  <Display axisIsDrawn="false" gridIsDrawn="false" FPSIsDisplayed="true" cameraIsEdited="false"/>
+  <Geometry fullScreen="false" width="1920" posX="-8" height="1138" posY="-8"/>
+  <Camera>
+    <Parameters fieldOfView="0.785398" sceneRadius="1" Type="PERSPECTIVE" zNearCoefficient="0.005" orthoCoef="0.414214" zClippingCoefficient="1.73205">
+      <SceneCenter x="0" y="0" z="0"/>
+    </Parameters>
+    <Stereo focusDistance="2.41421" physScreenWidth="0.5" IODist="0.062"/>
+    <ManipulatedCameraFrame>
+      <position x="1.73261" y="-9.88566e-05" z="0.000113283"/>
+      <orientation q0="4.23707e-10" q1="0.707107" q2="-4.23707e-10" q3="0.707107"/>
+      <ManipulatedParameters transSens="1" rotSens="1" wheelSens="1" spinSens="0.3"/>
+      <ManipulatedCameraParameters flySpeed="0.01">
+        <flyUpVector x="-3.3835e-16" y="1" z="2.74123e-09"/>
+      </ManipulatedCameraParameters>
+    </ManipulatedCameraFrame>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="1" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="1.73261" y="-9.88566e-05" z="0.000113283"/>
+        <orientation q0="4.23707e-10" q1="0.707107" q2="-4.23707e-10" q3="0.707107"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="2" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="1.14192" y="-9.88546e-05" z="-1.30305"/>
+        <orientation q0="4.75704e-11" q1="0.93598" q2="-1.27615e-11" q3="0.352053"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+    <KeyFrameInterpolator nbKF="1" speed="1" period="40" loop="false" index="3" time="0" closedPath="false">
+      <KeyFrame index="0" time="0">
+        <position x="0.944318" y="1.13687" z="-0.904283"/>
+        <orientation q0="-0.141009" q1="0.860864" q2="0.320681" q3="0.369043"/>
+      </KeyFrame>
+    </KeyFrameInterpolator>
+  </Camera>
+</QGLViewer>

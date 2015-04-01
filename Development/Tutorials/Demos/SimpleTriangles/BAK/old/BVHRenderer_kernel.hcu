@@ -1,0 +1,2110 @@
+/*
+ * GigaVoxels is a ray-guided streaming library used for efficient
+ * 3D real-time rendering of highly detailed volumetric scenes.
+ *
+ * Copyright (C) 2011-2013 INRIA <http://www.inria.fr/>
+ *
+ * Authors : GigaVoxels Team
+ *
+ * GigaVoxels is distributed under a dual-license scheme.
+ * You can obtain a specific license from Inria at gigavoxels-licensing@inria.fr.
+ * Otherwise the default license is the GPL version 3.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/** 
+ * @version 1.0
+ */
+
+#ifndef _BVHRenderer_KERNEL_hcu_
+#define _BVHRenderer_KERNEL_hcu_
+
+/******************************************************************************
+ ******************************* INCLUDE SECTION ******************************
+ ******************************************************************************/
+
+// GigaVoxels
+#include <GvRendering/GvRendererHelpersKernel.h>
+#include <GvRendering/GvRendererContext.h>
+
+// Project
+#include "BVHTrianglesManip.hcu"
+#include "RendererBVHTrianglesCommon.h"
+//#include "RendererBVHTriangles.hcu"
+//#include "RendererHelpers.hcu"
+//#include "BVHTrianglesGPUCache.hcu"
+//#include "GPUTreeBVH.hcu"
+//#include "RendererParameters.hcu"
+
+/******************************************************************************
+ ************************* DEFINE AND CONSTANT SECTION ************************
+ ******************************************************************************/
+
+__constant__ float3 k_lightPosition;
+__constant__ float k_lodScale;
+__constant__ uint k_outputVisInfo;
+__constant__ uint3 k_rootAddress;
+
+/******************************************************************************
+ ***************************** TYPE DEFINITION ********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ******************************** CLASS USED **********************************
+ ******************************************************************************/
+
+/******************************************************************************
+ ****************************** CLASS DEFINITION ******************************
+ ******************************************************************************/
+
+/** 
+ * @struct Ray
+ *
+ * @brief The Ray struct provides ...
+ */
+struct Ray
+{
+	float3 start;   // origin
+	float3 dir;		// direction
+	float2 decal;
+};
+
+/******************************************************************************
+ * Z-curve helpers ...
+ *
+ * @param val ...
+ * @param res ...
+ ******************************************************************************/
+__device__ __host__
+inline void compZCurve2D( uint val, uint2& res )	// max val: 31x31
+{
+	res.x = 0;
+	res.y = 0;
+
+	res.x|=val&1;
+	res.y|=(val&2)>>1;
+
+	res.x|=(val&4)>>1;
+	res.y|=(val&8)>>2;
+
+	res.x|=(val&16)>>2;
+	res.y|=(val&32)>>3;
+
+	res.x|=(val&64)>>3;
+	res.y|=(val&128)>>4;
+
+	res.x|=(val&256)>>4;
+	res.y|=(val&512)>>5;
+
+	//for blocks
+	res.x|=(val&1024)>>5;
+	res.y|=(val&2048)>>6;
+
+	res.x|=(val&4096)>>6;
+	res.y|=(val&8192)>>7;
+
+	res.x|=(val&16384)>>7;
+	res.y|=(val&32768)>>8;
+
+	res.x|=(val&65536)>>8;
+	res.y|=(val&131072)>>9;
+
+	res.x|=(val&262144)>>9;
+	res.y|=(val&524288)>>10;
+
+	res.x|=(val&1048576)>>10;
+	res.y|=(val&2097152)>>11;
+}
+
+/******************************************************************************
+ * triangleRayIntersect ...
+ *
+ * @param t ...
+ * @param tmin ...
+ * @param rayStart ...
+ * @param rayDir ...
+ * @param vert0 ...
+ * @param vert1 ...
+ * @param vert2 ...
+ * @param baryCoords ...
+ *
+ * @return ...
+ ******************************************************************************/
+__device__
+uint triangleRayIntersect( float& t, float tmin, const float3& rayStart, const float3& rayDir, float3 vert0, float3 vert1, float3 vert2, float3& baryCoords )
+{
+	float u, v;
+
+	float3 dir = rayDir;
+	float3 orig = rayStart;
+
+	const float EPSI = 0.000000001f;
+
+	/* Vec vert0=this->frame().inverseCoordinatesOf(p0);
+	Vec vert1=this->frame().inverseCoordinatesOf(p1);
+	Vec vert2=this->frame().inverseCoordinatesOf(p2);*/
+
+	////Ray triangle intersection from "Fast Minimum Storage RayTriangle Intersection" [MollerTrumbore97]
+
+	//double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
+	float3 edge1, edge2, pvec, tvec, qvec;
+	float det, inv_det;
+
+	/* find vectors for two edges sharing vert0 */
+	edge1 = vert1 - vert0;
+	edge2 = vert2 - vert0;
+
+	/* begin calculating determinant - also used to calculate U parameter */
+	pvec = cross( dir, edge2 );
+
+	/* if determinant is near zero, ray lies in plane of triangle */
+	det = dot( edge1, pvec ); //dot
+
+	if ( det > -EPSI && det < EPSI ) // bug with degenerated triangles
+	{
+		return false;
+	}
+
+	inv_det = 1.0f / det;
+
+	/* calculate distance from vert0 to ray origin */
+	tvec = orig - vert0;
+
+	/* calculate U parameter and test bounds */
+	u = dot( tvec, pvec ) * inv_det; // dot
+	if ( u < 0.0f || u > 1.0f )
+	{
+		return 0;
+	}
+
+	/* prepare to test V parameter */
+	qvec = cross( tvec, edge1 );
+
+	/* calculate V parameter and test bounds */
+	v = dot( dir, qvec ) * inv_det; // dot
+	if ( v < 0.0f || u + v > 1.0f )
+	{
+		return 0;
+	}
+
+	/* calculate t, ray intersects triangle */
+	t = dot( edge2, qvec ) * inv_det; // dot
+	
+	//float tmin = RTConfig::getInstance()->getRayTMin(); // 0.0001;
+
+	if ( t >= tmin )
+	{
+		//hit.setNormal( cross( edge1, edge2 ) );
+		// "Partie XI: Textures"
+		//hit.setUV( u, v );
+
+		baryCoords.x = (float)1.0 - u - v;
+		baryCoords.y = u;
+		baryCoords.z = v;
+
+		return 1;
+	}
+
+	return 0;
+}
+
+/******************************************************************************
+ * shadeBVH ...
+ *
+ * @param materialColor ...
+ * @param normalVec ...
+ * @param lightVec ...
+ * @param eyeVec ...
+ * @param ambiantTerm ...
+ * @param diffuseTerm ...
+ * @param specularTerm ...
+ *
+ * @return ...
+ ******************************************************************************/
+__device__
+float3 shadeBVH( float3 materialColor, float3 normalVec, float3 lightVec, float3 eyeVec, float3 ambiantTerm, float3 diffuseTerm, float3 specularTerm )
+{
+	float3 final_color = materialColor * ambiantTerm;
+
+	//float lightDist = length( lightVec );
+	float3 lightVecNorm = lightVec;
+	float lambertTerm = abs( dot( normalVec, lightVecNorm ) );
+
+	if ( lambertTerm > 0.0f )
+	{
+		// Diffuse
+		final_color += ( materialColor * diffuseTerm ) * lambertTerm ;
+
+		float3 halfVec = normalize( lightVecNorm + eyeVec );
+		float specular = pow( max( ( dot( normalVec, halfVec ) ) , 0.0f ), 32.0f );
+
+		// Specular
+		final_color += make_float3( specular ) * specularTerm;
+	}
+
+	return final_color;
+}
+
+/******************************************************************************
+ * renderBVH_SharedStack_GlobalTraversal ...
+ *
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ * @param ...
+ ******************************************************************************/
+template< int mode, bool outputVisInfo, class GPUTreeBVHType >
+__device__
+void renderBVH_SharedStack_GlobalTraversal( GPUTreeBVHType& gpuTreeBVH, uint Pid, uint2 pixelCoords,
+							float3& rayStart, float3& rayDir, float& t,
+							int& maskedAt,
+							float4& accCol,
+							bool& dataRequested )
+{
+	__shared__ bool allStop;
+	if ( Pid == 0 )
+	{
+		allStop = false;
+	}
+	__syncthreads();
+	
+	uint dataRequestIdx = 0;
+	uint numRequest = 0;
+	__shared__ uint numRequestBlock;
+	if ( Pid == 0 )
+	{
+		numRequestBlock = 0;
+	}
+
+	float dataRequestT = t;
+
+	float lastInterT = t;
+	float lastInterTmax = t;
+
+	__shared__ CudaQueue< uint, 8 > dataRequestQueue;
+	__shared__ CudaQueue< float, 8 > dataRequestTQueue;
+	if ( Pid == 0 )
+	{
+		dataRequestQueue.clear( 0U );
+	}
+
+	uint numInter = 0;
+
+	uint i = 0;
+	while ( !allStop /*&& i<2*/)
+	{
+		__shared__ uint Np;
+		__shared__ VolTreeBVHNodeUser snode;
+		if ( Pid == 0 )
+		{
+			Np = 0;
+		}
+		__syncthreads();
+
+		float searchT = min( t, dataRequestT );
+
+		d_bvhTraversalStep_SharedStack2( gpuTreeBVH, Pid, maskedAt, pixelCoords, rayStart, rayDir, Np, snode, searchT, lastInterT, lastInterTmax );
+
+		//parallelFetchVolTreeBVHNode(Pid, snode, Np);
+		__syncthreads();
+
+		if ( snode.isDataType() )
+		{
+			if ( snode.isCPULink() )
+			{
+				if ( outputVisInfo )
+				{
+#if 0
+					if(maskedAt>S.curIndex /* && lastInterT<dataRequestT*/ ){
+						//accCol=accCol+make_float4(0.0f, 0.0f, 1.0f, 1.0f);
+
+						bvhDataRequest(Np);
+
+						//dataRequestIdx=Np;
+						//dataRequestT=lastInterT;
+
+						//t=lastInterTmax; //To see ! ->nop
+						t=lastInterT; //nop -> but faster !
+
+					}
+					//t=lastInterT;
+#else
+					///////////
+#if 1
+					__shared__ bool doRequest;
+					if ( Pid == 0 )
+					{
+						doRequest = false;
+					}
+					__syncthreads();
+
+					if ( maskedAt > S.curIndex && lastInterT < dataRequestT )
+					{
+						doRequest = true;
+						dataRequestT = lastInterT;
+					}
+					__syncthreads();
+
+					if ( doRequest /*&& numRequestBlock<1*/ )
+					{
+						if ( Pid == 0 )
+						{
+							dataRequestQueue.push( Np );
+							dataRequestTQueue.push( lastInterT );
+
+							numRequestBlock++;
+						}
+					}
+					__syncthreads();
+					
+#else
+					if(maskedAt>S.curIndex  && lastInterT<dataRequestT && lastInterT<=t && numRequest<1){
+						numRequest++;
+						bvhDataRequest(Np);
+
+						dataRequestIdx=Np;
+						dataRequestT=lastInterT;
+
+						//t=lastInterTmax;
+						//if(outputVisInfo)
+							t=lastInterT;
+					}
+#endif
+					/*if(Pid==0){
+						S.push(Np);
+						nodeStack.push(snode);
+					}*/
+#endif
+				}
+				else
+				{
+					if ( maskedAt > S.curIndex )
+					{
+						float4 col = make_float4( 0.0f, 0.0f, 1.0f, 0.05f );
+						col.x = col.x * col.w; col.y = col.y * col.w; col.z = col.z * col.w;
+						accCol = accCol + ( 1.0f - accCol.w ) * col;
+						//accCol = accCol + make_float4( 0.0f, 0.1f, 0.0f, 0.1f );
+					}
+				}
+			}
+			else if( snode.isLinkActive() )
+			{
+
+	#if 0
+				if( maskedAt>S.curIndex ){
+					accCol=accCol+make_float4(0.2f, 0.0f, 0.0f, 0.2f);
+				}
+
+	#else
+				/*if( maskedAt>S.curIndex ){
+					float4 col=make_float4(1.0f,0.0f, 0.0f, 0.2f);
+					col.x=col.x*col.w; col.y=col.y*col.w;col.z=col.z*col.w;
+					accCol=accCol+(1.0f-accCol.w)*col;
+
+					//accCol=accCol+make_float4(0.1f, 0.0f, 0.0f, 0.1f);
+				}*/
+
+#if 1	//Triangle inter
+				uint dataIdx = snode.getDataIdx() * BVH_DATA_PAGE_SIZE;
+
+				// Parallel fetch
+				__shared__ float4 vertPosBuff[ BVH_DATA_PAGE_SIZE ];
+#if BVH_USE_COLOR
+				__shared__ uchar4 vertColBuff[ BVH_DATA_PAGE_SIZE ];
+#endif
+				for ( uint p = 0; p < BVH_DATA_PAGE_SIZE; p += ( NUM_RAYS_PER_BLOCK_X * NUM_RAYS_PER_BLOCK_Y ) )
+				{
+					uint vertBuffIdx = p + Pid;
+
+					if ( vertBuffIdx < BVH_DATA_PAGE_SIZE )
+					{
+						///vertPosBuff[vertBuffIdx]=k_vertexPosArray.get(dataIdx+vertBuffIdx);
+						//gpuPoolTexFetch(TEXDATAPOOL_BVHTRIANGLES, 0, 3, float4, cudaReadModeElementType,  dataIdx+vertBuffIdx, vertPosBuff[vertBuffIdx]);
+						vertPosBuff[ vertBuffIdx ] = gpuTreeBVH.getVertexData< 0 >( dataIdx + vertBuffIdx );
+#if BVH_USE_COLOR
+						///vertColBuff[vertBuffIdx]=k_vertexColorArray.get(dataIdx+vertBuffIdx);
+						vertColBuff[ vertBuffIdx ] = gpuTreeBVH.getVertexData< 1 >( dataIdx + vertBuffIdx );
+#endif
+					}
+				}
+
+				__syncthreads();
+				
+				uint minInterPageIdx = 0xFFFFFFFF;
+				uint minInterVertIdx = 0xFFFFFFFF;
+
+				__shared__ bool pageUsed;
+				if ( Pid == 0 )
+				{
+					pageUsed = false;
+				}
+				__syncthreads();
+
+				for ( uint v = 0; v < BVH_DATA_PAGE_SIZE / 3; v++ )
+				{
+					float4 tverts[3];
+					tverts[0] = vertPosBuff[ v*3 + 0 ];
+					tverts[1] = vertPosBuff[ v*3 + 1 ];
+					tverts[2] = vertPosBuff[ v*3 + 2 ];
+
+					float3 vpos[3];
+					vpos[0] = make_float3( tverts[0].x, tverts[0].y, tverts[0].z );
+					vpos[1] = make_float3( tverts[1].x, tverts[1].y, tverts[1].z );
+					vpos[2] = make_float3( tverts[2].x, tverts[2].y, tverts[2].z );
+
+					float3 baryCoords;
+					float interT;
+					uint interRes = triangleRayIntersect( interT, 0.0f /*lastInterT-0.000001f*/, rayStart, rayDir,
+							vpos[0],vpos[1],vpos[2], baryCoords );
+
+					/*if(inter && interT<minInter){
+						minInterIdx=v;
+						minInter=interT;
+					}*/
+
+					if ( maskedAt > S.curIndex && interRes && interT < t )
+					{
+						t = interT;
+						pageUsed = true;
+
+						float4 sampleColor;
+
+#if BVH_USE_COLOR
+						uchar4 vCols[3];
+
+						vCols[0] = vertColBuff[ v*3 + 0 ];
+						vCols[1] = vertColBuff[ v*3 + 1 ];
+						vCols[2] = vertColBuff[ v*3 + 2 ];
+
+						float4 vColsF[3];
+						vColsF[0] = make_float4( vCols[0].x/255.0f, vCols[0].y/255.0f, vCols[0].z/255.0f, vCols[0].w/255.0f );
+						vColsF[1] = make_float4( vCols[1].x/255.0f, vCols[1].y/255.0f, vCols[1].z/255.0f, vCols[1].w/255.0f );
+						vColsF[2] = make_float4( vCols[2].x/255.0f, vCols[2].y/255.0f, vCols[2].z/255.0f, vCols[2].w/255.0f );
+
+						sampleColor = vColsF[0];
+
+
+#else
+						float gs=0.2f;
+						sampleColor=make_float4(gs, gs, gs, 0.001f);
+#endif
+
+#if 1
+						//Lighting
+						float3 sampleColor3 = make_float3( sampleColor.x, sampleColor.y, sampleColor.z );
+						sampleColor3 = sampleColor3 * make_float3( 0.7f ) + make_float3( 0.2f, 0.15f, 0.2f );
+
+						float3 normal;
+						float3 edge1, edge2;
+
+						edge1 = vpos[1] - vpos[0];
+						edge2 = vpos[2] - vpos[0];
+						normal =/*make_float3(0.0f)-*/normalize( cross( edge1, edge2 ) );
+
+						float3 lightPos = make_float3( 100.0f, 100.0f, 100.0f );
+						
+						float3 eyeVec=-rayDir;//normalize(vpos[0]-ray.start);
+						float3 lightVec = eyeVec;//normalize(lightPos-vpos[0]);
+
+						sampleColor3 = shadeBVH( sampleColor3, normal, lightVec, eyeVec, make_float3(0.5f), make_float3(0.8f), make_float3(0.4f));
+
+						sampleColor.x = sampleColor3.x; sampleColor.y = sampleColor3.y; sampleColor.z = sampleColor3.z;
+#endif
+						///////////////////////////////////////////
+						accCol = sampleColor;
+
+						/*accCol=accCol+make_float4(0.0f, 0.2f, 0.0f, 0.0f);
+						if(accCol.y>=1.0f)*/
+
+						//	maskedAt=-1;
+						//break;
+					}
+				}
+
+				__syncthreads();
+
+				if ( outputVisInfo && pageUsed )
+				{
+					setDataPageUsage( snode.getDataIdx() );
+				}
+#endif
+
+#endif
+				//Limit number of intersection
+				numInter++;
+				/*if(numInter>400)
+					maskedAt=-1;*/
+
+			}
+		} //if( snode.isDataType() )
+
+		if ( S.isEmpty() )
+		{
+			allStop = true;
+		}
+		else
+		{
+			if ( Pid == 0 )
+			{
+				allStop = true;
+			}
+			__syncthreads();
+
+			if ( maskedAt != -1 /*&& !dataRequestIdx*/ )
+			{
+				allStop = false;
+			}
+		}
+
+		__syncthreads();
+
+		i++;
+	}
+
+#if 0
+	if(outputVisInfo){
+		if(dataRequestIdx && dataRequestT<=t){
+			bvhDataRequest(dataRequestIdx);
+
+			dataRequested=true;
+		}
+	}
+#endif
+#if 1
+	for ( uint i = 0; i < min( numRequestBlock, 8 ); ++i )
+	{
+		float iT = dataRequestTQueue.data[ i ];
+
+		__shared__ bool emmitReq;
+		if ( Pid == 0 )
+		{
+			emmitReq = false;
+		}
+		__syncthreads();
+		if ( iT < t )
+		{
+			emmitReq = true;
+		}
+		__syncthreads();
+
+		if ( Pid == 0 && emmitReq )
+		{
+			bvhDataRequest( dataRequestQueue.data[ i ] );
+			dataRequested = true;
+		}
+	}
+
+#endif
+
+}
+
+
+template<int mode, bool outputVisInfo>
+__device__
+void renderBVH_SharedStack_GlobalTraversal_Debug(	uint Pid, uint2 pixelCoords,
+							float3 &rayStart, float3 &rayDir, float &t,
+							int &maskedAt,
+							float4 &accCol,
+							bool &dataRequested){
+
+ 
+	__shared__ VolTreeBVHNodeUser snode;
+	__shared__ uint Np;
+	if(Pid==0)
+		Np=0;
+
+
+	__syncthreads();
+  
+	#pragma unroll 1
+	for(int i=0; i<23; ++i){
+		
+		//parallelFetchVolTreeBVHNode(Pid, snode, Np);
+
+		//VolTreeBVHNodeUser snode;
+		fetchVolTreeBVHNode( snode, Np);
+	   
+
+		__syncthreads();
+
+
+		if( true ||  snode.isDataType() ){
+			if(true || snode.isCPULink()){
+
+
+				float interMin=0.0f; float interMax=1000.0f;
+				int objboxinter=intersectBox( rayStart, rayDir,  snode.bbMin(), snode.bbMax(), interMin, interMax);
+				//int objboxinter=intersectBox( rayStart, rayDir,  make_float3(0.0f), make_float3(1.0f), interMin, interMax);
+				bool snodeInter= (objboxinter && interMax>0.0f);
+
+
+				if( snodeInter /*&& maskedAt>0*/){
+					float4 col=make_float4(1.0f,0.0f, 0.0f, 0.1f);
+					col.x=col.x*col.w; col.y=col.y*col.w;col.z=col.z*col.w;
+					accCol=accCol+(1.0f-accCol.w)*col;
+					//accCol=accCol+make_float4(0.0f, 0.1f, 0.0f, 0.1f);
+				}
+			}
+		}
+
+
+		if(Pid==0)
+			Np++;
+
+		__syncthreads();
+
+		
+	}
+
+
+
+}
+
+
+//Old path
+template<class BlockResolution, int mode, bool outputVisInfo>
+__device__
+void renderBVH_SharedStack(	uint Pid, bool &globalMasked,
+							uint2 pixelCoords, Ray eyeRay, float3 &rayStart, float3 &rayDir, float tMin, float tMax,
+							uint3 rootAddress, float &t, float4 &accCol, float4 &accNormal, bool &modifInfoWriten, float lodScale){
+	bool masked=globalMasked;
+
+
+	//t=tMin+getRayStep<mode>(tMin);
+	t=1000.0f;
+
+	initStacks(Pid);
+	/////////
+
+	__shared__ bool allStop;
+	int maskedAt=BVH_TRAVERSAL_STACK_SIZE;
+
+	if(masked)
+		maskedAt=-1;
+
+	if(Pid==0){
+		allStop=true;
+	}
+	__syncthreads();
+
+	if(maskedAt!=-1){
+		allStop=false;
+	}
+	__syncthreads();
+
+
+	bool dataRequested=false;
+
+	///////////////////////////////////////
+	renderBVH_SharedStack_GlobalTraversal<mode, outputVisInfo>( Pid, pixelCoords,
+								rayStart, rayDir, t,
+								maskedAt,
+								accCol,
+								dataRequested);
+
+
+#if DEBUG_USE_CUPRINTF
+		cuPrintf("{0: %d} ", 0);
+#endif
+}
+
+
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * initRay ...
+ *
+ * @param Pid ...
+ * @param pixelCoords ...
+ * @param rayStart ...
+ * @param rayDir ...
+ ******************************************************************************/
+template< class BlockResolution >
+__device__
+void initRay( uint& Pid, uint2& pixelCoords, float3& rayStart, float3& rayDir )
+{
+	// Compute global index in a block of thread
+	Pid = threadIdx.x + threadIdx.y * BlockResolution::x;
+
+	compZCurve2D( Pid, pixelCoords );
+	uint2 blockPos;
+#if 0
+	uint Bid=blockIdx.x+blockIdx.y*(gridDim.x /*k_renderViewContext.frameSize.x/NUM_RAYS_PER_BLOCK_X*/);
+	compZCurve2D(Bid, blockPos);
+
+	pixelCoords.x+=(blockPos.x * NUM_RAYS_PER_BLOCK_X);
+	pixelCoords.y+=(blockPos.y * NUM_RAYS_PER_BLOCK_Y);
+#else //Used for non square blocks
+	pixelCoords.x += ( blockIdx.x * NUM_RAYS_PER_BLOCK_X );
+	pixelCoords.y += ( blockIdx.y * NUM_RAYS_PER_BLOCK_Y );
+#endif
+
+	// calculate eye ray in world space
+	rayStart = k_renderViewContext.viewCenterWP;
+
+	float3 pixelVecWP = k_renderViewContext.viewPlaneDirWP
+						+ k_renderViewContext.viewPlaneXAxisWP * (float)pixelCoords.x
+						+ k_renderViewContext.viewPlaneYAxisWP * (float)pixelCoords.y;
+
+	rayDir = normalize( pixelVecWP );
+}
+
+/******************************************************************************
+ * KERNEL RenderKernelInitRayState ...
+ *
+ * @param d_rayBufferT buffer of max depth for each ray
+ * @param d_rayBufferMaskedAt buffer of mask for each ray (-1 or BVH_TRAVERSAL_STACK_SIZE == 16) 
+ * @param d_rayBufferStackIndex 1 per rendering tile. If tile has an intersection it stores stack current index, else 0.
+ * @param d_rayBufferStackVals ...
+ ******************************************************************************/
+template< class BlockResolution >
+__global__
+void RenderKernelInitRayState( float* d_rayBufferT, int* d_rayBufferMaskedAt, int* d_rayBufferStackIndex, uint* d_rayBufferStackVals )
+{
+	// Initialize ray
+	float3 rayStart;
+	float3 rayDir;
+	uint Pid;
+	uint2 pixelCoords;
+	initRay< BlockResolution >( Pid, pixelCoords, rayStart, rayDir );
+
+	float t = 100000.0f;
+	float4 accCol = make_float4( 0.0f, 0.0f, 0.0f, 0.0f );
+
+	bool masked;
+	masked = ( pixelCoords.x >= k_renderViewContext.frameSize.x ) || ( pixelCoords.y >= k_renderViewContext.frameSize.y );
+
+	__shared__ bool allStop;
+	if ( Pid == 0 )
+	{
+		allStop = true;
+	}
+	__syncthreads();
+
+	// Test againt global bounding box
+	float boxInterMin = 0.0f; float boxInterMax = 10000.0f;
+	int hit = GvRendering::intersectBox( rayStart, rayDir, make_float3( 0.0f ), make_float3( 1.0f ), boxInterMin, boxInterMax );
+	hit = hit && boxInterMax > 0.0f;
+	masked = masked || (!hit) ;
+
+	boxInterMin = maxcc( boxInterMin, 1.0f / 1024.0f );
+
+	t = boxInterMax;
+
+	if ( !masked )
+	{
+		allStop = false;
+	}
+	__syncthreads();
+
+	// Compute global rendering tile's index
+	uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x;
+
+	if ( !allStop )
+	{
+		initStacks( Pid );
+
+		if ( Pid == 0 )
+		{
+			// Update current rendering tile's stack index
+			d_rayBufferStackIndex[ blockIndex ] = S.curIndex;
+		}
+
+		if ( Pid < (uint)S.curIndex )
+		{
+			d_rayBufferStackVals[ blockIndex * BVH_TRAVERSAL_STACK_SIZE + Pid ] = S.data[ Pid ];
+		}
+
+		if ( pixelCoords.x < k_renderViewContext.frameSize.x && pixelCoords.y < k_renderViewContext.frameSize.y )
+		{
+			// Update current ray's max depth
+			d_rayBufferT[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ] = t;
+
+			// Update current ray's mask
+			if ( masked )
+			{
+				d_rayBufferMaskedAt[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ] = -1;
+			}
+			else
+			{
+				d_rayBufferMaskedAt[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ] = BVH_TRAVERSAL_STACK_SIZE;
+			}
+		}
+	}
+	else
+	{
+		// Update current rendering tile's stack index
+		d_rayBufferStackIndex[ blockIndex ] = 0;
+	}
+}
+
+/******************************************************************************
+ * KERNEL RenderKernelContinueRays ...
+ *
+ * @param gpuTreeBVH ...
+ * @param d_rayBufferT ...
+ * @param d_rayBufferMaskedAt ...
+ * @param d_rayBufferStackIndex ...
+ * @param d_rayBufferStackVals ...
+ ******************************************************************************/
+template< class BlockResolution, int rendermode, bool outputVisInfo, class GPUTreeBVHType >
+__global__
+void RenderKernelContinueRays( GPUTreeBVHType gpuTreeBVH, float* d_rayBufferT, int* d_rayBufferMaskedAt, int* d_rayBufferStackIndex, uint* d_rayBufferStackVals )
+{
+	__shared__ float3 rayStart;
+	float3 rayDir;
+
+	uint Pid;
+	uint2 pixelCoords;
+	initRay< BlockResolution >( Pid, pixelCoords, rayStart, rayDir );
+
+	// Read saved states
+
+	float t = 100000.0f;
+	float4 accCol = make_float4( 0.0f );
+
+	bool masked;
+	masked = ( pixelCoords.x >= k_renderViewContext.frameSize.x ) || ( pixelCoords.y >= k_renderViewContext.frameSize.y );
+
+	__shared__ bool allStop;
+
+	if ( Pid == 0 )
+	{
+		allStop = true;
+	}
+	__syncthreads();
+
+	if ( !masked )
+	{
+		allStop = false;
+	}
+	__syncthreads();
+
+	if ( !allStop )
+	{
+		uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x;
+
+		S.init( Pid );
+		nodeStack.init( Pid );
+
+		if ( Pid == 0 )
+		{
+			S.curIndex = d_rayBufferStackIndex[ blockIndex ];
+
+			if ( S.curIndex <= 0 )
+			{
+				allStop = true;
+			}
+		}
+		__syncthreads();
+
+		if ( (int)Pid < S.curIndex )
+		{
+			S.data[ Pid ] = d_rayBufferStackVals[ blockIndex * BVH_TRAVERSAL_STACK_SIZE + Pid ];
+		}
+	}
+
+	__syncthreads();
+
+	int maskedAt;
+	__shared__ bool dataRequested;
+	if ( Pid == 0 )
+	{
+		dataRequested = false;
+	}
+
+	if ( !allStop )
+	{
+		// Load nodes into stack
+		__shared__ VolTreeBVHNodeUser snode;
+
+		for ( int i = 0; i < S.curIndex; ++i )
+		{
+			int Np = S.data[ i ];
+
+			//if(false && Np>0){
+			//	gpuTreeBVH.parallelFetchBVHNode(Pid, snode, Np);
+			//	nodeStack.push(snode);
+			//}else{
+				if ( Pid == 0 )
+				{
+					snode.bbox.pMin = make_float3( 0.0f );
+					snode.bbox.pMax = make_float3( 1.0f );
+					snode.setSubNodeIdx( 2 );
+					snode.setGPULink();
+
+					nodeStack.push( snode );
+				}
+				__syncthreads();
+			/*}*/
+		}
+
+		t = d_rayBufferT[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ];
+
+		if ( !masked )
+		{
+			maskedAt = d_rayBufferMaskedAt[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ];
+		}
+		else
+		{
+			maskedAt = -1;
+		}
+
+		renderBVH_SharedStack_GlobalTraversal< rendermode, outputVisInfo >( gpuTreeBVH, Pid, pixelCoords, rayStart, rayDir, t, maskedAt, accCol, dataRequested );
+
+		// Write out
+		if ( pixelCoords.x < k_renderViewContext.frameSize.x && pixelCoords.y < k_renderViewContext.frameSize.y )
+		{
+			float4 color = accCol;
+
+			if ( color.w > 0.0f )
+			{
+				// write output color
+				color.x = __saturatef( color.x );
+				color.y = __saturatef( color.y );
+				color.z = __saturatef( color.z );
+				color.w = __saturatef( color.w );
+
+				//k_renderViewContext.outFrameColor.set(pixelCoords, make_uchar4( (uchar)(color.x*255.0f), (uchar)(color.y*255.0f), (uchar)(color.z*255.0f), (uchar)(color.w*255.0f) ));
+				GvRendering::setOutputColor( pixelCoords, make_uchar4( (uchar)(color.x*255.0f), (uchar)(color.y*255.0f), (uchar)(color.z*255.0f), (uchar)(color.w*255.0f) ) );
+			}
+		}
+
+		////Write restart info////
+		uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x;
+		/*if(Pid==0){
+			d_rayBufferStackIndex[blockIndex]=S.curIndex;
+		}
+
+		if(Pid<(uint)S.curIndex){
+			d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid]=S.data[Pid];
+		}*/
+
+		if ( Pid == 0 && !dataRequested )
+		{
+			d_rayBufferStackIndex[ blockIndex ] = 0;
+		}
+
+		if ( ( pixelCoords.x < k_renderViewContext.frameSize.x ) && ( pixelCoords.y < k_renderViewContext.frameSize.y ) )
+		{
+			d_rayBufferT[ pixelCoords.x + pixelCoords.y * k_renderViewContext.frameSize.x ] = t;
+
+			/*if(maskedAt==-1)
+				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=maskedAt;*/
+		}
+	}
+}
+
+#endif
+
+////BVHRenderer_kernel.hcu
+//#ifndef _BVHRenderer_KERNEL_hcu_
+//#define _BVHRenderer_KERNEL_hcu_
+//
+///******************************************************************************
+// ******************************* INCLUDE SECTION ******************************
+// ******************************************************************************/
+//
+//// Gigavoxels
+//#include <GvCore/RendererHelpers.hcu>
+//#include <gigavoxels/renderer/RendererParameters.hcu>
+//
+//#include "BVHTrianglesManip.hcu"
+//
+//#include "RendererBVHTrianglesCommon.h"
+//
+////#include "RendererHelpers.hcu"
+//
+////#include "BvhTree.hcu"
+////#include "BvhTreeCache.hcu"
+////#include "BvhTreeRenderer.hcu"
+//
+////#include "RendererParameters.hcu"
+//
+///////////
+//__constant__ float3 k_lightPosition;
+//__constant__ float k_lodScale;
+//__constant__ uint k_outputVisInfo;
+//
+//struct Ray
+//{
+//	float3 start;   // origin
+//	float3 dir;		// direction
+//	float2 decal;
+//};
+//
+///******************************************************************************
+// ****************************** INLINE DEFINITION *****************************
+// ******************************************************************************/
+//// FIXME
+//#define RENDER_USE_SWIZZLED_THREADS 1
+//
+///******************************************************************************
+// * ...
+// *
+// * @param Pid ...
+// * @param blockPos ...
+// * @param pixelCoords ...
+// ******************************************************************************/
+//template<class BlockResolution>
+//__device__
+//inline void initPixelCoords(uint Pid, uint2 &pixelCoords)
+//{
+//#if RENDER_USE_SWIZZLED_THREADS==0
+//	pixelCoords.x = threadIdx.x + __uimul(blockIdx.x, BlockResolution::x);
+//	pixelCoords.y = threadIdx.y + __uimul(blockIdx.y, BlockResolution::y);
+//#else //Z-curve scheduling
+//
+//	gigavoxels::deinterleaveBits32(Pid, pixelCoords);
+//
+//	uint2 blockPos = make_uint2(blockIdx.x, blockIdx.y);
+//
+//	pixelCoords.x +=blockPos.x * BlockResolution::x;
+//	pixelCoords.y +=blockPos.y * BlockResolution::y;
+//#endif
+//}
+//
+//__device__
+//float3 shadeBVH(float3 materialColor, float3 normalVec, float3 lightVec, float3 eyeVec, float3 ambiantTerm, float3 diffuseTerm, float3 specularTerm){
+//
+//
+//	float3 final_color = materialColor*ambiantTerm;
+//
+//	//float lightDist=length(lightVec);
+//	float3 lightVecNorm=lightVec;
+//	float lambertTerm = abs(dot(normalVec,lightVecNorm));
+//
+//	if(lambertTerm > 0.0f) {
+//		//Diffuse
+//		final_color += (materialColor*diffuseTerm)*lambertTerm ;
+//
+//		float3 halfVec = normalize(lightVecNorm + eyeVec);
+//		float specular = pow( max( (dot(normalVec, halfVec)) , 0.0f), 32.0f );
+//
+//		//Specular
+//		final_color += make_float3(specular) *specularTerm;
+//	}
+//
+//	return final_color;
+//}
+//
+//
+//template<int mode, bool outputVisInfo, class GPUTreeBVHType>
+//__device__
+//void renderBVH_SharedStack_GlobalTraversal(GPUTreeBVHType &gpuTreeBVH, const uint Pid, const uint2 pixelCoords,
+//	const float3 &rayStart, const float3 &rayDir, float &t, int &maskedAt, float4 &accCol, bool &dataRequested)
+//{
+//	__shared__ bool allStop;
+//	if(Pid==0){
+//		allStop=false;
+//	}
+//	__syncthreads();
+//
+//
+//	uint dataRequestIdx=0;
+//	uint numRequest=0;
+//	__shared__ uint numRequestBlock;
+//	if(Pid==0)
+//		numRequestBlock=0;
+//
+//	float dataRequestT=t;
+//
+//	float lastInterT=t;
+//	float lastInterTmax=t;
+//
+//	__shared__ CudaQueue<uint, 8> dataRequestQueue;
+//	__shared__ CudaQueue<float, 8> dataRequestTQueue;
+//	if(Pid==0)
+//		dataRequestQueue.clear(0U);
+//
+//
+//	uint numInter=0;
+//
+//	uint i=0;
+//	while( !allStop /*&& i<2*/){
+//
+//		__shared__ uint Np;
+//		__shared__ VolTreeBVHNodeUser snode;
+//		if(Pid==0)
+//			Np=0;
+//		__syncthreads();
+//
+//		float searchT=min(t, dataRequestT);
+//
+//		d_bvhTraversalStep_SharedStack2(gpuTreeBVH, Pid, maskedAt, rayStart, rayDir, Np, snode, searchT, lastInterT, lastInterTmax);
+//
+//		//parallelFetchVolTreeBVHNode(Pid, snode, Np);
+//		__syncthreads();
+//
+//
+//
+//		if( snode.isDataType() ){
+//			if( snode.isCPULink()){
+//
+//				if(outputVisInfo){
+//#if 0
+//					if(maskedAt>S.curIndex /* && lastInterT<dataRequestT*/ ){
+//						//accCol=accCol+make_float4(0.0f, 0.0f, 1.0f, 1.0f);
+//
+//						bvhDataRequest(Np);
+//
+//						//dataRequestIdx=Np;
+//						//dataRequestT=lastInterT;
+//
+//						//t=lastInterTmax; //To see ! ->nop
+//						t=lastInterT; //nop -> but faster !
+//
+//					}
+//					//t=lastInterT;
+//#else
+//					///////////
+//#if 1
+//					__shared__ bool doRequest;
+//					if(Pid==0)
+//						doRequest=false;
+//					__syncthreads();
+//
+//					if(maskedAt>S.curIndex && lastInterT<dataRequestT){
+//						doRequest=true;
+//						dataRequestT=lastInterT;
+//					}
+//					__syncthreads();
+//
+//					if(doRequest /*&& numRequestBlock<1*/){
+//						if(Pid==0){
+//							dataRequestQueue.push(Np);
+//							dataRequestTQueue.push(lastInterT);
+//
+//							numRequestBlock++;
+//						}
+//					}
+//					__syncthreads();
+//
+//
+//#else
+//					if(maskedAt>S.curIndex  && lastInterT<dataRequestT && lastInterT<=t && numRequest<1){
+//						numRequest++;
+//						bvhDataRequest(Np);
+//
+//						dataRequestIdx=Np;
+//						dataRequestT=lastInterT;
+//
+//						//t=lastInterTmax;
+//						//if(outputVisInfo)
+//							t=lastInterT;
+//					}
+//#endif
+//					/*if(Pid==0){
+//						S.push(Np);
+//						nodeStack.push(snode);
+//					}*/
+//#endif
+//				}else{
+//					if( maskedAt>S.curIndex ){
+//						float4 col=make_float4(0.0f,0.0f, 1.0f, 0.05f);
+//						col.x=col.x*col.w; col.y=col.y*col.w;col.z=col.z*col.w;
+//						accCol=accCol+(1.0f-accCol.w)*col;
+//						//accCol=accCol+make_float4(0.0f, 0.1f, 0.0f, 0.1f);
+//					}
+//				}
+//			}else
+//			if(snode.isLinkActive() ){
+//
+//
+//	#if 0
+//				if( maskedAt>S.curIndex ){
+//					accCol=accCol+make_float4(0.2f, 0.0f, 0.0f, 0.2f);
+//				}
+//
+//	#else
+//				/*if( maskedAt>S.curIndex ){
+//					float4 col=make_float4(1.0f,0.0f, 0.0f, 0.2f);
+//					col.x=col.x*col.w; col.y=col.y*col.w;col.z=col.z*col.w;
+//					accCol=accCol+(1.0f-accCol.w)*col;
+//
+//					//accCol=accCol+make_float4(0.1f, 0.0f, 0.0f, 0.1f);
+//				}*/
+//
+//#if 1	//Triangle inter
+//				uint dataIdx=snode.getDataIdx()*BVH_DATA_PAGE_SIZE;
+//
+//				//Parallel fetch
+//				// FIXME
+//				//__shared__ float4 vertPosBuff[BVH_DATA_PAGE_SIZE];
+//				__shared__ float4 vertPosBuff[BVH_DATA_PAGE_SIZE];
+//#if BVH_USE_COLOR
+//				// FIXME
+//				//__shared__ BVHVertexColorType vertColBuff[BVH_DATA_PAGE_SIZE];
+//				__shared__ uchar4 vertColBuff[BVH_DATA_PAGE_SIZE];
+//#endif
+//				for(uint p=0; p<BVH_DATA_PAGE_SIZE; p+=(NUM_RAYS_PER_BLOCK_X*NUM_RAYS_PER_BLOCK_Y) ){
+//					uint vertBuffIdx=p+Pid;
+//
+//					if(vertBuffIdx<BVH_DATA_PAGE_SIZE){
+//						///vertPosBuff[vertBuffIdx]=k_vertexPosArray.get(dataIdx+vertBuffIdx);
+//						//gpuPoolTexFetch(TEXDATAPOOL_BVHTRIANGLES, 0, 3, float4, cudaReadModeElementType,  dataIdx+vertBuffIdx, vertPosBuff[vertBuffIdx]);
+//						vertPosBuff[vertBuffIdx]=gpuTreeBVH.getVertexData<0>(dataIdx+vertBuffIdx);
+//#if BVH_USE_COLOR
+//						///vertColBuff[vertBuffIdx]=k_vertexColorArray.get(dataIdx+vertBuffIdx);
+//						vertColBuff[vertBuffIdx]=gpuTreeBVH.getVertexData<1>(dataIdx+vertBuffIdx);
+//#endif
+//					}
+//				}
+//
+//				__syncthreads();
+//
+//
+//				uint minInterPageIdx=0xFFFFFFFF;
+//				uint minInterVertIdx=0xFFFFFFFF;
+//
+//				__shared__ bool pageUsed;
+//				if(Pid==0)
+//					pageUsed=false;
+//				__syncthreads();
+//
+//				for(uint v=0; v< BVH_DATA_PAGE_SIZE/3; v++){
+//					// FIXME
+//					//float4 tverts[3];
+//					float4 tverts[3];
+//
+//					tverts[0]=vertPosBuff[v*3+0];
+//					tverts[1]=vertPosBuff[v*3+1];
+//					tverts[2]=vertPosBuff[v*3+2];
+//
+//					float3 vpos[3];
+//					vpos[0]=make_float3(tverts[0].x, tverts[0].y, tverts[0].z);
+//					vpos[1]=make_float3(tverts[1].x, tverts[1].y, tverts[1].z);
+//					vpos[2]=make_float3(tverts[2].x, tverts[2].y, tverts[2].z);
+//
+//					float3 baryCoords;
+//					float interT;
+//					uint interRes=triangleRayIntersect(interT, 0.0f /*lastInterT-0.000001f*/, rayStart, rayDir,
+//							vpos[0],vpos[1],vpos[2], baryCoords);
+//
+//					/*if(inter && interT<minInter){
+//						minInterIdx=v;
+//						minInter=interT;
+//					}*/
+//
+//					if(maskedAt>S.curIndex && interRes && interT<t){
+//						t=interT;
+//						pageUsed=true;
+//
+//						float4 sampleColor;
+//
+//#if BVH_USE_COLOR
+//						// FIXME
+//						//BVHVertexColorType vCols[3];
+//						uchar4 vCols[3];
+//
+//						vCols[0]=vertColBuff[v*3+0];
+//						vCols[1]=vertColBuff[v*3+1];
+//						vCols[2]=vertColBuff[v*3+2];
+//
+//						float4 vColsF[3];
+//						vColsF[0]=make_float4(vCols[0].x/255.0f, vCols[0].y/255.0f, vCols[0].z/255.0f, vCols[0].w/255.0f);
+//						vColsF[1]=make_float4(vCols[1].x/255.0f, vCols[1].y/255.0f, vCols[1].z/255.0f, vCols[1].w/255.0f);
+//						vColsF[2]=make_float4(vCols[2].x/255.0f, vCols[2].y/255.0f, vCols[2].z/255.0f, vCols[2].w/255.0f);
+//
+//						sampleColor=vColsF[0];
+//
+//
+//#else
+//						float gs=0.2f;
+//						sampleColor=make_float4(gs, gs, gs, 0.001f);
+//#endif
+//
+//#if 1
+//						//Lighting
+//						float3 sampleColor3=make_float3(sampleColor.x, sampleColor.y, sampleColor.z);
+//						sampleColor3=sampleColor3*make_float3(0.7f) +make_float3(0.2f, 0.15f, 0.2f);
+//
+//						float3 normal;
+//						float3 edge1, edge2;
+//
+//						edge1= vpos[1]-vpos[0];
+//						edge2= vpos[2]-vpos[0];
+//						normal=/*make_float3(0.0f)-*/normalize(cross(edge1, edge2));
+//
+//						float3 lightPos=make_float3(100.0f, 100.0f, 100.0f);
+//
+//
+//						float3 eyeVec=-1.0f * rayDir;//normalize(vpos[0]-ray.start);
+//						float3 lightVec=eyeVec;//normalize(lightPos-vpos[0]);
+//
+//						sampleColor3=shadeBVH(sampleColor3, normal, lightVec, eyeVec, make_float3(0.5f), make_float3(0.8f), make_float3(0.4f));
+//
+//
+//						sampleColor.x=sampleColor3.x; sampleColor.y=sampleColor3.y; sampleColor.z=sampleColor3.z;
+//#endif
+//						///////////////////////////////////////////
+//						accCol=sampleColor;
+//
+//						/*accCol=accCol+make_float4(0.0f, 0.2f, 0.0f, 0.0f);
+//						if(accCol.y>=1.0f)*/
+//
+//						//	maskedAt=-1;
+//						//break;
+//					}
+//				}
+//
+//				__syncthreads();
+//
+//				if(outputVisInfo && pageUsed)
+//					setDataPageUsage(snode.getDataIdx());
+//#endif
+//
+//#endif
+//				//Limit number of intersection
+//				numInter++;
+//				/*if(numInter>400)
+//					maskedAt=-1;*/
+//
+//			}
+//		} //if( snode.isDataType() )
+//
+//
+//
+//		if(S.isEmpty()){
+//			allStop=true;
+//		}else{
+//			if(Pid==0)
+//				allStop=true;
+//			__syncthreads();
+//
+//			if( maskedAt!=-1 /*&& !dataRequestIdx*/){
+//				allStop=false;
+//			}
+//		}
+//
+//		__syncthreads();
+//
+//		i++;
+//	}
+//
+//#if 0
+//	if(outputVisInfo){
+//		if(dataRequestIdx && dataRequestT<=t){
+//			bvhDataRequest(dataRequestIdx);
+//
+//			dataRequested=true;
+//		}
+//	}
+//#endif
+//#if 1
+//	for(uint i=0; i<min(numRequestBlock, 8); ++i){
+//		float iT=dataRequestTQueue.data[i];
+//
+//		__shared__ bool emmitReq;
+//		if(Pid==0)
+//			emmitReq=false;
+//		__syncthreads();
+//		if(iT<t){
+//			emmitReq=true;
+//		}
+//		__syncthreads();
+//
+//		if(Pid==0 && emmitReq){
+//			bvhDataRequest(dataRequestQueue.data[i]);
+//			dataRequested=true;
+//		}
+//	}
+//
+//#endif
+//
+//}
+//
+//
+//template<int mode, bool outputVisInfo>
+//__device__
+//void renderBVH_SharedStack_GlobalTraversal_Debug(	uint Pid, uint2 pixelCoords,
+//							float3 &rayStart, float3 &rayDir, float &t,
+//							int &maskedAt,
+//							float4 &accCol,
+//							bool &dataRequested){
+//
+// 
+//	__shared__ VolTreeBVHNodeUser snode;
+//	__shared__ uint Np;
+//	if(Pid==0)
+//		Np=0;
+//
+//
+//	__syncthreads();
+//  
+//	#pragma unroll 1
+//	for(int i=0; i<23; ++i){
+//		
+//		//parallelFetchVolTreeBVHNode(Pid, snode, Np);
+//
+//		//VolTreeBVHNodeUser snode;
+//		fetchVolTreeBVHNode( snode, Np);
+//	   
+//
+//		__syncthreads();
+//
+//
+//		if( true ||  snode.isDataType() ){
+//			if(true || snode.isCPULink()){
+//
+//
+//				float interMin=0.0f; float interMax=1000.0f;
+//				int objboxinter=intersectBox( rayStart, rayDir,  snode.bbMin(), snode.bbMax(), interMin, interMax);
+//				//int objboxinter=intersectBox( rayStart, rayDir,  make_float3(0.0f), make_float3(1.0f), interMin, interMax);
+//				bool snodeInter= (objboxinter && interMax>0.0f);
+//
+//
+//				if( snodeInter /*&& maskedAt>0*/){
+//					float4 col=make_float4(1.0f,0.0f, 0.0f, 0.1f);
+//					col.x=col.x*col.w; col.y=col.y*col.w;col.z=col.z*col.w;
+//					accCol=accCol+(1.0f-accCol.w)*col;
+//					//accCol=accCol+make_float4(0.0f, 0.1f, 0.0f, 0.1f);
+//				}
+//			}
+//		}
+//
+//
+//		if(Pid==0)
+//			Np++;
+//
+//		__syncthreads();
+//
+//		
+//	}
+//
+//
+//
+//}
+//
+//
+////Old path
+//template<class BlockResolution, int mode, bool outputVisInfo>
+//__device__
+//void renderBVH_SharedStack(	uint Pid, bool &globalMasked,
+//							uint2 pixelCoords, Ray eyeRay, float3 &rayStart, float3 &rayDir, float tMin, float tMax,
+//							uint3 rootAddress, float &t, float4 &accCol, float4 &accNormal, bool &modifInfoWriten, float lodScale){
+//	bool masked=globalMasked;
+//
+//
+//	//t=tMin+getRayStep<mode>(tMin);
+//	t=1000.0f;
+//
+//	initStacks(Pid);
+//	/////////
+//
+//	__shared__ bool allStop;
+//	int maskedAt=BVH_TRAVERSAL_STACK_SIZE;
+//
+//	if(masked)
+//		maskedAt=-1;
+//
+//	if(Pid==0){
+//		allStop=true;
+//	}
+//	__syncthreads();
+//
+//	if(maskedAt!=-1){
+//		allStop=false;
+//	}
+//	__syncthreads();
+//
+//
+//	bool dataRequested=false;
+//
+//	///////////////////////////////////////
+//	renderBVH_SharedStack_GlobalTraversal<mode, outputVisInfo>( Pid, pixelCoords,
+//								rayStart, rayDir, t,
+//								maskedAt,
+//								accCol,
+//								dataRequested);
+//
+//
+//#if DEBUG_USE_CUPRINTF
+//		cuPrintf("{0: %d} ", 0);
+//#endif
+//}
+//
+//
+//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+//
+////Z-curve helpers
+//__device__ __host__
+//inline void compZCurve2D(uint val, uint2 &res){ //max val: 31x31
+//
+//	res.x=0;
+//	res.y=0;
+//
+//	res.x|=val&1;
+//	res.y|=(val&2)>>1;
+//
+//	res.x|=(val&4)>>1;
+//	res.y|=(val&8)>>2;
+//
+//	res.x|=(val&16)>>2;
+//	res.y|=(val&32)>>3;
+//
+//	res.x|=(val&64)>>3;
+//	res.y|=(val&128)>>4;
+//
+//	res.x|=(val&256)>>4;
+//	res.y|=(val&512)>>5;
+//
+//	//for blocks
+//	res.x|=(val&1024)>>5;
+//	res.y|=(val&2048)>>6;
+//
+//	res.x|=(val&4096)>>6;
+//	res.y|=(val&8192)>>7;
+//
+//	res.x|=(val&16384)>>7;
+//	res.y|=(val&32768)>>8;
+//
+//	res.x|=(val&65536)>>8;
+//	res.y|=(val&131072)>>9;
+//
+//	res.x|=(val&262144)>>9;
+//	res.y|=(val&524288)>>10;
+//
+//	res.x|=(val&1048576)>>10;
+//	res.y|=(val&2097152)>>11;
+//}
+//
+//template<class BlockResolution>
+//__device__
+//void initRay(uint &Pid, uint2 &pixelCoords, float3 &rayStart, float3 &rayDir){
+//	//Compute thread ID
+//	Pid=threadIdx.x+threadIdx.y*BlockResolution::x;
+//
+//
+//	compZCurve2D(Pid, pixelCoords);
+//	uint2 blockPos;
+//#if 0
+//	uint Bid=blockIdx.x+blockIdx.y*(gridDim.x /*k_renderViewContext.frameSize.x/NUM_RAYS_PER_BLOCK_X*/);
+//	compZCurve2D(Bid, blockPos);
+//
+//	pixelCoords.x+=(blockPos.x * NUM_RAYS_PER_BLOCK_X);
+//	pixelCoords.y+=(blockPos.y * NUM_RAYS_PER_BLOCK_Y);
+//#else //Used for non square blocks
+//	pixelCoords.x+=(blockIdx.x * NUM_RAYS_PER_BLOCK_X);
+//	pixelCoords.y+=(blockIdx.y * NUM_RAYS_PER_BLOCK_Y);
+//#endif
+//
+//
+//	// calculate eye ray in world space
+//	rayStart = k_renderViewContext.viewCenterWP;
+//
+//
+//	float3 pixelVecWP=k_renderViewContext.viewPlaneDirWP
+//						+k_renderViewContext.viewPlaneXAxisWP*(float)pixelCoords.x
+//						+k_renderViewContext.viewPlaneYAxisWP*(float)pixelCoords.y;
+//
+//	rayDir=normalize(pixelVecWP);
+//}
+//
+//template<class BlockResolution>
+//__global__
+//void RenderKernelInitRayState(
+//		float *d_rayBufferT,
+//		int *d_rayBufferMaskedAt,
+//		int *d_rayBufferStackIndex,
+//		uint *d_rayBufferStackVals	) {
+//
+//	float3 rayStart;
+//	float3 rayDir;
+//	uint Pid;
+//	uint2 pixelCoords;
+//	initRay<BlockResolution>(Pid, pixelCoords, rayStart, rayDir);
+//
+//
+//
+//	float t=100000.0f;
+//	float4 accCol=make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+//
+//	bool masked;
+//	masked=(pixelCoords.x >= k_renderViewContext.frameSize.x) || (pixelCoords.y >= k_renderViewContext.frameSize.y);
+//
+//
+//	__shared__ bool allStop;
+//	if(Pid==0)
+//		allStop=true;
+//	__syncthreads();
+//
+//	//Test againt global bounding box
+//	float boxInterMin=0.0f; float boxInterMax=10000.0f;
+//	int hit=intersectBox(rayStart, rayDir, make_float3(0.0f), make_float3(1.0f), boxInterMin, boxInterMax);
+//	hit=hit && boxInterMax>0.0f;
+//	masked= masked || (!hit) ;
+//
+//	boxInterMin=maxcc(boxInterMin, 1.0f/1024.0f);
+//
+//	t=boxInterMax;
+//
+//
+//	if( !masked )
+//		allStop=false;
+//	__syncthreads();
+//
+//	uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+//
+//	if(!allStop){
+//		initStacks(Pid);
+//
+//		if(Pid==0){
+//			d_rayBufferStackIndex[blockIndex]=S.curIndex;
+//		}
+//
+//		if(Pid<(uint)S.curIndex){
+//			d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid]=S.data[Pid];
+//		}
+//
+//		if( (pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y) ) {
+//			d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=t;
+//
+//			if(masked){
+//				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=-1;
+//			}else{
+//				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=BVH_TRAVERSAL_STACK_SIZE;
+//			}
+//		}
+//	}else{
+//		d_rayBufferStackIndex[blockIndex]=0;
+//	}
+//
+//}
+//
+//
+//
+//template<class BlockResolution, int rendermode, bool outputVisInfo, class GPUTreeBVHType>
+//__global__
+//void RenderKernelContinueRays(GPUTreeBVHType gpuTreeBVH,
+//						float *d_rayBufferT,
+//						int *d_rayBufferMaskedAt,
+//						int *d_rayBufferStackIndex,
+//						uint *d_rayBufferStackVals) {
+//
+//	__shared__ float3 rayStart;
+//	float3 rayDir;
+//
+//	uint Pid;
+//	uint2 pixelCoords;
+//	initRay<BlockResolution>(Pid, pixelCoords, rayStart, rayDir);
+//
+//	//Read saved states
+//
+//	float t=100000.0f;
+//	float4 accCol=make_float4(0.0f);
+//
+//
+//	bool masked;
+//	masked=(pixelCoords.x >= k_renderViewContext.frameSize.x) || (pixelCoords.y >= k_renderViewContext.frameSize.y);
+//
+//
+//	__shared__ bool allStop;
+//	if(Pid==0)
+//		allStop=true;
+//	__syncthreads();
+//
+//	if( !masked )
+//		allStop=false;
+//	__syncthreads();
+//
+//
+//
+//	if( !allStop ){
+//
+//		uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+//
+//		S.init(Pid);
+//		nodeStack.init(Pid);
+//
+//		if(Pid==0){
+//			S.curIndex=d_rayBufferStackIndex[blockIndex];
+//			if(S.curIndex<=0)
+//				allStop=true;
+//		}
+//		__syncthreads();
+//
+//		if( (int)Pid<S.curIndex){
+//			S.data[Pid]=d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid];
+//		}
+//	}
+//
+//	__syncthreads();
+//
+//	int maskedAt;
+//	__shared__ bool dataRequested;
+//	if(Pid==0)
+//		dataRequested=false;
+//
+//	if( !allStop ){
+//		//Load nodes into stack
+//		__shared__ VolTreeBVHNodeUser snode;
+//
+//		for(int i=0; i<S.curIndex; ++i){
+//			int Np=S.data[i];
+//
+//			if(false && Np>0){
+//				gpuTreeBVH.parallelFetchBVHNode(Pid, snode, Np);
+//				nodeStack.push(snode);
+//			}else{
+//				if(Pid==0){
+//					snode.bbox.pMin=make_float3(0.0f);
+//					snode.bbox.pMax=make_float3(1.0f);
+//					snode.setSubNodeIdx(2);
+//					snode.setGPULink();
+//
+//					nodeStack.push(snode);
+//				}
+//				__syncthreads();
+//			}
+//		}
+//
+//
+//		t=d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x];
+//		if(!masked){
+//			maskedAt=d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x];
+//		}else{
+//			maskedAt=-1;
+//		}
+//
+//
+//
+//		/*renderBVH_SharedStack_GlobalTraversal<rendermode, outputVisInfo>( Pid, pixelCoords,
+//										rayStart, rayDir, t,
+//										maskedAt,
+//										accCol,
+//										dataRequested);*/
+//
+//		renderBVH_SharedStack_GlobalTraversal<rendermode, outputVisInfo>( gpuTreeBVH,
+//										Pid, pixelCoords,
+//										rayStart, rayDir, t,
+//										maskedAt,
+//										accCol,
+//										dataRequested);
+//
+//		// write out
+//		if ((pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y)) {
+//			float4 color = accCol;
+//			if(color.w>0.0f){
+//			// write output color
+//				color.x=__saturatef(color.x);
+//				color.y=__saturatef(color.y);
+//				color.z=__saturatef(color.z);
+//				color.w=__saturatef(color.w);
+//
+//				k_renderViewContext.outFrameColor.set(pixelCoords,make_uchar4( (uchar)(color.x*255.0f), (uchar)(color.y*255.0f), (uchar)(color.z*255.0f), (uchar)(color.w*255.0f) ));
+//			}
+//		}
+//
+//
+//		////Write restart info////
+//		uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+//		/*if(Pid==0){
+//			d_rayBufferStackIndex[blockIndex]=S.curIndex;
+//		}
+//
+//		if(Pid<(uint)S.curIndex){
+//			d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid]=S.data[Pid];
+//		}*/
+//
+//		if(Pid==0 && !dataRequested)
+//			d_rayBufferStackIndex[blockIndex]=0;
+//
+//		if( (pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y) ) {
+//			d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=t;
+//
+//			/*if(maskedAt==-1)
+//				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=maskedAt;*/
+//		}
+//
+//	}
+//
+//}
+//
+//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+//
+//////template<class BlockResolution>
+//////__device__
+//////void initRay(uint &Pid, uint2 &pixelCoords, float3 &rayStart, float3 &rayDir)
+//////{
+//////	//Compute thread ID
+//////	Pid = threadIdx.x + threadIdx.y * BlockResolution::x;
+//////	initPixelCoords<BlockResolution>(Pid, pixelCoords);
+////////	compZCurve2D(Pid, pixelCoords);
+////////	uint2 blockPos;
+////////#if 0
+////////	uint Bid=blockIdx.x+blockIdx.y*(gridDim.x /*k_renderViewContext.frameSize.x/NUM_RAYS_PER_BLOCK_X*/);
+////////	compZCurve2D(Bid, blockPos);
+////////
+////////	pixelCoords.x+=(blockPos.x * NUM_RAYS_PER_BLOCK_X);
+////////	pixelCoords.y+=(blockPos.y * NUM_RAYS_PER_BLOCK_Y);
+////////#else //Used for non square blocks
+////////	pixelCoords.x+=(blockIdx.x * NUM_RAYS_PER_BLOCK_X);
+////////	pixelCoords.y+=(blockIdx.y * NUM_RAYS_PER_BLOCK_Y);
+////////#endif
+//////
+//////	// calculate eye ray in world space
+//////	rayStart = k_renderViewContext.viewCenterWP;
+//////
+//////	float3 pixelVecWP=k_renderViewContext.viewPlaneDirWP
+//////						+k_renderViewContext.viewPlaneXAxisWP*(float)pixelCoords.x
+//////						+k_renderViewContext.viewPlaneYAxisWP*(float)pixelCoords.y;
+//////
+//////	rayDir=normalize(pixelVecWP);
+//////}
+////
+////template<class BlockResolution>
+////__device__
+////void initRay(uint &Pid, uint2 &pixelCoords, float3 &rayStart, float3 &rayDir)
+////{
+////	//Compute thread ID
+////	Pid = threadIdx.x + threadIdx.y * BlockResolution::x;
+////	initPixelCoords<BlockResolution>(Pid, pixelCoords);
+//////	compZCurve2D(Pid, pixelCoords);
+//////	uint2 blockPos;
+//////#if 0
+//////	uint Bid=blockIdx.x+blockIdx.y*(gridDim.x /*k_renderViewContext.frameSize.x/NUM_RAYS_PER_BLOCK_X*/);
+//////	compZCurve2D(Bid, blockPos);
+//////
+//////	pixelCoords.x+=(blockPos.x * NUM_RAYS_PER_BLOCK_X);
+//////	pixelCoords.y+=(blockPos.y * NUM_RAYS_PER_BLOCK_Y);
+//////#else //Used for non square blocks
+//////	pixelCoords.x+=(blockIdx.x * NUM_RAYS_PER_BLOCK_X);
+//////	pixelCoords.y+=(blockIdx.y * NUM_RAYS_PER_BLOCK_Y);
+//////#endif
+////
+////	// calculate eye ray in world space
+////	rayStart = k_renderViewContext.viewCenterWP;
+////
+////	float3 pixelVecWP=k_renderViewContext.viewPlaneDirWP
+////						+k_renderViewContext.viewPlaneXAxisWP*(float)pixelCoords.x
+////						+k_renderViewContext.viewPlaneYAxisWP*(float)pixelCoords.y;
+////
+////	rayDir=normalize(pixelVecWP);
+////}
+////
+////template<class BlockResolution>
+////__global__
+////void RenderKernelInitRayState(float *d_rayBufferT, int *d_rayBufferMaskedAt, int *d_rayBufferStackIndex, uint *d_rayBufferStackVals)
+////{
+////	float3 rayStart;
+////	float3 rayDir;
+////	uint Pid;
+////	uint2 pixelCoords;
+////	initRay<BlockResolution>(Pid, pixelCoords, rayStart, rayDir);
+////
+////	float t=100000.0f;
+////	float4 accCol=make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+////
+////	bool masked;
+////	masked=(pixelCoords.x >= k_renderViewContext.frameSize.x) || (pixelCoords.y >= k_renderViewContext.frameSize.y);
+////
+////
+////	__shared__ bool allStop;
+////	if(Pid==0)
+////		allStop=true;
+////	__syncthreads();
+////
+////	//Test againt global bounding box
+////	float boxInterMin=0.0f; float boxInterMax=10000.0f;
+////	int hit=intersectBox(rayStart, rayDir, make_float3(0.0f), make_float3(1.0f), boxInterMin, boxInterMax);
+////	hit=hit && boxInterMax>0.0f;
+////	masked= masked || (!hit) ;
+////
+////	boxInterMin=maxcc(boxInterMin, 1.0f/1024.0f);
+////
+////	t=boxInterMax;
+////
+////
+////	if( !masked )
+////		allStop=false;
+////	__syncthreads();
+////
+////	uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+////
+////	if(!allStop){
+////		initStacks(Pid);
+////
+////		if(Pid==0){
+////			d_rayBufferStackIndex[blockIndex]=S.curIndex;
+////		}
+////
+////		if(Pid<(uint)S.curIndex){
+////			d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid]=S.data[Pid];
+////		}
+////
+////		if( (pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y) ) {
+////			d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=t;
+////
+////			if(masked){
+////				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=-1;
+////			}else{
+////				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=BVH_TRAVERSAL_STACK_SIZE;
+////			}
+////		}
+////	}else{
+////		d_rayBufferStackIndex[blockIndex]=0;
+////	}
+////}
+////
+////template<class BlockResolution, int rendermode, bool outputVisInfo, class GPUTreeBVHType>
+////__global__
+////void RenderKernelContinueRays(GPUTreeBVHType gpuTreeBVH, float *d_rayBufferT, int *d_rayBufferMaskedAt, int *d_rayBufferStackIndex, uint *d_rayBufferStackVals)
+////{
+////	__shared__ float3 rayStart;
+////	float3 rayDir;
+////
+////	uint Pid;
+////	uint2 pixelCoords;
+////	initRay<BlockResolution>(Pid, pixelCoords, rayStart, rayDir);
+////
+////	//Read saved states
+////
+////	float t=100000.0f;
+////	float4 accCol=make_float4(0.0f);
+////
+////	bool masked;
+////	masked=(pixelCoords.x >= k_renderViewContext.frameSize.x) || (pixelCoords.y >= k_renderViewContext.frameSize.y);
+////
+////	__shared__ bool allStop;
+////	if(Pid==0)
+////		allStop=true;
+////	__syncthreads();
+////
+////	if( !masked )
+////		allStop=false;
+////	__syncthreads();
+////
+////	if( !allStop ){
+////
+////		uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+////
+////		S.init(Pid);
+////		nodeStack.init(Pid);
+////
+////		if(Pid==0){
+////			S.curIndex=d_rayBufferStackIndex[blockIndex];
+////			if(S.curIndex<=0)
+////				allStop=true;
+////		}
+////		__syncthreads();
+////
+////		if( (int)Pid<S.curIndex){
+////			S.data[Pid]=d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid];
+////		}
+////	}
+////
+////	__syncthreads();
+////
+////	int maskedAt;
+////	__shared__ bool dataRequested;
+////	if(Pid==0)
+////		dataRequested=false;
+////
+////	if( !allStop ){
+////		//Load nodes into stack
+////		__shared__ VolTreeBVHNodeUser snode;
+////
+////		for(int i=0; i<S.curIndex; ++i){
+////			int Np=S.data[i];
+////
+////			if(false && Np>0){
+////				gpuTreeBVH.parallelFetchBVHNode(Pid, snode, Np);
+////				nodeStack.push(snode);
+////			}else{
+////				if(Pid==0){
+////					snode.bbox.pMin=make_float3(0.0f);
+////					snode.bbox.pMax=make_float3(1.0f);
+////					snode.setSubNodeIdx(2);
+////					snode.setGPULink();
+////
+////					nodeStack.push(snode);
+////				}
+////				__syncthreads();
+////			}
+////		}
+////
+////
+////		t=d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x];
+////		if(!masked){
+////			maskedAt=d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x];
+////		}else{
+////			maskedAt=-1;
+////		}
+////
+////
+////
+////		/*renderBVH_SharedStack_GlobalTraversal<rendermode, outputVisInfo>( Pid, pixelCoords,
+////										rayStart, rayDir, t,
+////										maskedAt,
+////										accCol,
+////										dataRequested);*/
+////
+////		renderBVH_SharedStack_GlobalTraversal<rendermode, outputVisInfo>( gpuTreeBVH,
+////										Pid, pixelCoords,
+////										rayStart, rayDir, t,
+////										maskedAt,
+////										accCol,
+////										dataRequested);
+////
+////		// write out
+////		if ((pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y)) {
+////			float4 color = accCol;
+////			if(color.w>0.0f){
+////			// write output color
+////				color.x=__saturatef(color.x);
+////				color.y=__saturatef(color.y);
+////				color.z=__saturatef(color.z);
+////				color.w=__saturatef(color.w);
+////
+////				//k_renderViewContext.outFrameColor.get(pixelCoords)=make_uchar4( (uchar)(color.x*255.0f), (uchar)(color.y*255.0f), (uchar)(color.z*255.0f), (uchar)(color.w*255.0f) );
+////				k_renderViewContext.outFrameColor.set(pixelCoords, make_uchar4( (uchar)(color.x*255.0f), (uchar)(color.y*255.0f), (uchar)(color.z*255.0f), (uchar)(color.w*255.0f) ) );
+////			}
+////		}
+////
+////
+////		////Write restart info////
+////		uint blockIndex=blockIdx.x+blockIdx.y*gridDim.x;
+////		/*if(Pid==0){
+////			d_rayBufferStackIndex[blockIndex]=S.curIndex;
+////		}
+////
+////		if(Pid<(uint)S.curIndex){
+////			d_rayBufferStackVals[blockIndex*BVH_TRAVERSAL_STACK_SIZE+Pid]=S.data[Pid];
+////		}*/
+////
+////		if(Pid==0 && !dataRequested)
+////			d_rayBufferStackIndex[blockIndex]=0;
+////
+////		if( (pixelCoords.x < k_renderViewContext.frameSize.x) && (pixelCoords.y < k_renderViewContext.frameSize.y) ) {
+////			d_rayBufferT[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=t;
+////
+////			/*if(maskedAt==-1)
+////				d_rayBufferMaskedAt[pixelCoords.x+pixelCoords.y*k_renderViewContext.frameSize.x]=maskedAt;*/
+////		}
+////
+////	}
+////
+////}
+//
+//#endif

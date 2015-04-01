@@ -1,0 +1,23 @@
+/*! \page Tutorial_Amplified_Volume Amplified Volume Tutorial
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * This tutorial shows how to perturb the volume of a 3D model:
+ * - 3D model is loaded from a 3D texture,
+ * - 3D model is a signed distance field,
+ * - volume is pertub by a Perlin noise,
+ * - a 1D texture color map is used.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ *
+ * Here is a screenshot of the Amplified Volume sample in action.
+ *
+ * \image html tutorial_amplifiedvolume_overview.png "Amplified Volume"
+ * <br>
+ *
+ */
+ 

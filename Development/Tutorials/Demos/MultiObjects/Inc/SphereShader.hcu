@@ -1,0 +1,104 @@
+/*
+ * Copyright (C) 2011 Fabrice Neyret <Fabrice.Neyret@imag.fr>
+ * Copyright (C) 2011 Cyril Crassin <Cyril.Crassin@icare3d.org>
+ * Copyright (C) 2011 Morgan Armand <morgan.armand@gmail.com>
+ *
+ * This file is part of Gigavoxels.
+ *
+ * Gigavoxels is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Gigavoxels is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Gigavoxels.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _SPHERESHADER_HCU_
+#define _SPHERESHADER_HCU_
+
+#include <IRenderShader.h>
+
+__constant__ float3 lightPosition;
+
+// stop if we reached our maximum opacity
+__device__ static const float opacityThreshold = 0.99f;
+
+struct SphereShaderKernel : public gigavoxels::IRenderShader<SphereShaderKernel>
+{
+	__device__
+	inline void preShadeImpl(const float3 &rayStartTree, const float3 &rayDirTree, float &tTree)
+	{
+		_accColor = make_float4(0.f);
+	}
+
+	__device__
+	inline void postShadeImpl()
+	{
+		if (_accColor.w >= opacityThreshold)
+			_accColor.w = 1.f;
+	}
+
+	__device__
+	inline float getConeApertureImpl(const float tTree) const
+	{
+		// overestimate to avoid aliasing
+		const float scaleFactor = 1.333f;
+
+		return k_renderViewContext.pixelSize.x * tTree * scaleFactor * k_renderViewContext.frustumNearINV;
+	}
+
+	__device__
+	inline float4 getColorImpl() const
+	{
+		return _accColor;
+	}
+
+	__device__
+	inline bool stopCriterionImpl(const float3 &rayPosInWorld) const
+	{
+		return (_accColor.w >= opacityThreshold);
+	}
+
+	__device__
+	inline bool descentCriterionImpl(const float voxelSize) const
+	{
+		return true;
+	}
+
+	template <typename SamplerType>
+	__device__
+	inline void runImpl(const SamplerType &brickSampler, const float3 samplePosScene,
+		const float3 rayDir, float &rayStep, const float coneAperture)
+	{
+		float4 color = brickSampler.template getValue<0>(coneAperture);
+
+		if (color.w > 0.0f)
+		{
+			float4 normal = brickSampler.template getValue<1>(coneAperture);
+
+			float3 normalVec = normalize(make_float3(normal.x, normal.y, normal.z));
+			float3 lightVec = normalize(lightPosition);
+
+			// lambertian lighting
+			float3 rgb = make_float3(color.x, color.y, color.z) * max(0.0f, dot(normalVec, lightVec));
+
+			color.x = rgb.x;
+			color.y = rgb.y;
+			color.z = rgb.z;
+		}
+
+		// accumulate the color
+		_accColor = _accColor + (1.0f - _accColor.w) * color;
+	}
+
+private:
+	float4 _accColor;
+};
+
+#endif // !_SPHERESHADER_HCU_

@@ -1,0 +1,43 @@
+Il serait intéressant d'avoir un format de fichier interne avec des headers.
+Et même avoir un META fichier, par exemple XML (ou .txt),
+qui permettrait à un producer d'avoir toutes les informations nécessaires pour charger
+ses données.
+
+Dans les formats de fichier image (en), le header peut donner des informations telles que :
+la taille d'une image,
+sa résolution,
+son nombre de couleurs,
+et similaires.
+
+IMPORTANT :
+Il va falloir développer dans le Core de GigaVoxels un loader qui meta-file GigaVoxels
++ trouver une exension (il y a déjà ".gvp" pour les plugins GigaVoxels => peut-être".gvf" ?)
++ ce loader pourrait de plus faire des tests :
+- est-ce qu'il a toutes les données dont il a besoin
+- analyse des headers de ses fichiers associés (nodes + bricks) ==> y a t-il une erreur, etc...
+
+------------------------------------
+EXEMPLE : META fichier
+------------------------------------
+<GigaVoxels>
+	<FileFormat name="xyzrgb_dragon maxResolution="512" brickSize="8" brickBorder="1">
+		<Nodes>
+		<Bricks types="uchar4;float4">
+	</FileFormat>
+</GigaVoxels>
+
+------------------------------------
+EXEMPLE : NODES file Header
+------------------------------------
+FileFormat			GigaVoxels
+FileVersion			1
+FileType			NODES
+LevelOfResolution	0
+
+------------------------------------
+EXEMPLE : NODES file Header
+------------------------------------
+FileFormat	GigaVoxels
+FileVersion	100
+FileType	NODES
+NbElements	1

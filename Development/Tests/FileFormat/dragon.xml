@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<GigaVoxels version="1.0" >
+	<DataStructure dataTypeList="uchar4" nbLOD="6" nodeResolution="2" brickResolution="8" borderSize="1" />
+		<Nodes>
+			<NodeFile lod="0" url="xyzrgb_dragon512_BR8_B1_L0.nodes" />
+			<NodeFile lod="1" url="xyzrgb_dragon512_BR8_B1_L1.nodes" />
+			<NodeFile lod="2" url="xyzrgb_dragon512_BR8_B1_L2.nodes" />
+			<NodeFile lod="3" url="xyzrgb_dragon512_BR8_B1_L3.nodes" />
+			<NodeFile lod="4" url="xyzrgb_dragon512_BR8_B1_L4.nodes" />
+			<NodeFile lod="5" url="xyzrgb_dragon512_BR8_B1_L5.nodes" />
+			<NodeFile lod="6" url="xyzrgb_dragon512_BR8_B1_L6.nodes" />
+		</Nodes>
+		<Bricks>
+			<Channel index="0">
+				<BrickFile lod="0" url="xyzrgb_dragon512_BR8_B1_L0_C0_uchar4.bricks" />
+				<BrickFile lod="1" url="xyzrgb_dragon512_BR8_B1_L1_C0_uchar4.bricks" />
+				<BrickFile lod="2" url="xyzrgb_dragon512_BR8_B1_L2_C0_uchar4.bricks" />
+				<BrickFile lod="3" url="xyzrgb_dragon512_BR8_B1_L3_C0_uchar4.bricks" />
+				<BrickFile lod="4" url="xyzrgb_dragon512_BR8_B1_L4_C0_uchar4.bricks" />
+				<BrickFile lod="5" url="xyzrgb_dragon512_BR8_B1_L5_C0_uchar4.bricks" />
+				<BrickFile lod="6" url="xyzrgb_dragon512_BR8_B1_L6_C0_uchar4.bricks" />
+			</Channel>
+		</Bricks>
+	</DataStructure>
+</GigaVoxels>

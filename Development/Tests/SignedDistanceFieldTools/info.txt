@@ -1,0 +1,19 @@
+Here is one sample file attached for output signed distance field for bunny.obj
+
+This would help you to read it:
+
+
+// ---------------------------------------------------------------------------------------------------------------------------
+  std::cout << "SDFGen - A utility for converting closed oriented triangle meshes into grid-based signed distance fields.\n";
+    std::cout << "\nThe output file format is:";
+    std::cout << "<ni> <nj> <nk>\n";
+    std::cout << "<origin_x> <origin_y> <origin_z>\n";
+    std::cout << "<dx>\n";
+    std::cout << "<value_1> <value_2> <value_3> [...]\n\n";
+    
+    std::cout << "(ni,nj,nk) are the integer dimensions of the resulting distance field.\n";
+    std::cout << "(origin_x,origin_y,origin_z) is the 3D position of the grid origin.\n";
+    std::cout << "<dx> is the grid spacing.\n\n";
+    std::cout << "<value_n> are the signed distance data values, in ascending order of i, then j, then k.\n";
+
+// ---------------------------------------------------------------------------------------------------------------------------

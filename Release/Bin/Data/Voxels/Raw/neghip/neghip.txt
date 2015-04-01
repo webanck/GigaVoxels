@@ -1,0 +1,9 @@
+http://www.gris.uni-tuebingen.de/edu/areas/scivis/volren/datasets/datasets.html
+
+All datasets are binary, storing 8bit voxels for all slices, for all scanlines, and for all voxels.
+
+Name Neghip
+Size 64x64x64
+Spacing 1:1:1
+Description Simulation of the spatial probability distribution of the electrons in a high potential protein molecule.
+Courtesy VolVis distribution of SUNY Stony Brook, NY, USA.

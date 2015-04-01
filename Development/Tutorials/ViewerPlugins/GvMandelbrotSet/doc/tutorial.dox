@@ -1,0 +1,16 @@
+/*! \page Tutorial_Mandelbrot_Set Mandelbrot Set Tutorial
+ * 
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ * This tutorial shows how to create data proceduraly on the GPU.
+ * A mandelbrot set is generated on the fly.
+ *
+ * <hr>
+ *
+ * @section Screenshot_Section Screenshot
+ * Here is a screenshot of the Mandelbrot Set sample in action.
+ * \image html tutorial_mandelbrotset_overview.png "Mandelbrot Set"
+ *
+ */
+ 

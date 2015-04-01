@@ -1,0 +1,171 @@
+/** \page Tutorials Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * Differents types of tutorials are provided to understand how to use the GigaVoxels library.
+ *
+ * <hr>
+ *
+ * @section Type_Section Types of tutorials
+ *
+ * This page is divided in the following sections:
+ *
+ * - \subpage Tutorials_IO_Streaming
+ * - \subpage Tutorials_Procedural_Geometry
+ * - \subpage Tutorials_Noise
+ * - \subpage Tutorials_3D_Effects
+ * - \subpage Tutorials_Geometry_Instancing
+ * - \subpage Tutorials_GUI_Integration
+ * - \subpage Tutorials_Graphics_Interoperability
+ */
+ 
+/** \page Tutorials_Procedural_Geometry Procedural Geometry Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * Procedural geometry could be:
+ *
+ * - common geometry,
+ * - terrain,
+ * - fractals,
+ * - hypertextures,
+ * - shellmaps,
+ * - volumetric distance fields,
+ * - etc...
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorials:
+ *
+ * \li \subpage Tutorial_Simple_Sphere
+ * \li \subpage Tutorial_Simple_Sphere_CPU
+ * \li \subpage Tutorial_Mandelbrot_Set
+ * \li \subpage Tutorial_Slisesix
+ *
+ */
+ 
+/** \page Tutorials_IO_Streaming I/O Streaming Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * I/O streaming tutorials.
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorial(s):
+ *
+ * \li \subpage Tutorial_Dynamic_Load
+ *
+ */
+ 
+/** \page Tutorials_Noise Noise Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * Example of noise could be Perlin noise on which pattern can be applied:
+ *
+ * - fractal,
+ * - turbulence,
+ * - gradient,
+ * - etc...
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorials:
+ *
+ * \li \subpage Tutorial_Amplified_Surface
+ * \li \subpage Tutorial_Amplified_Volume
+ * \li \subpage Tutorial_Smart_Perlin_Noise
+ * \li \subpage Tutorial_Procedural_Terrain
+ *
+ */
+ 
+/** \page Tutorials_3D_Effects 3D Effects Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * 3D Effects tutorials.
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorial(s):
+ *
+ * \li \subpage Tutorial_Depth_Of_Field
+ *
+ */
+ 
+/** \page Tutorials_Geometry_Instancing Geometry Instancing Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * Geometry Instancing tutorials.
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorial(s):
+ *
+ * \li \subpage Tutorial_Menger_Sponge
+ *
+ */
+ 
+/** \page Tutorials_GUI_Integration GUI Integration Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * GUI Integration tutorials.
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorials:
+ *
+ * \li \subpage Tutorial_GLUT_Window
+ * \li \subpage Tutorial_Qt_Window
+ *
+ */
+ 
+/** \page Tutorials_Graphics_Interoperability Graphics Interoperability Tutorials
+ *
+ * \image html GigaVoxelsLogo_div2.png
+ *
+ * @section Overview_Section Overview
+ *
+ * Graphics Interoperability tutorials.
+ *
+ * <hr>
+ *
+ * @section List_Section List of tutorials
+ *
+ * Here is the list of available tutorials:
+ *
+ * \li \subpage Tutorial_Renderer_GLSL
+ * \li \subpage Tutorial_Proxy_Geometry
+ * \li \subpage Tutorial_Voxelization
+ *
+ */
+ 

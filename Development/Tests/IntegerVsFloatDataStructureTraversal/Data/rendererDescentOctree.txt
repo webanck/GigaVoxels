@@ -1,0 +1,252 @@
+template< bool priorityOnBrick, class TVolTreeKernelType, class GPUCacheType >
+	__device__
+	inline void rendererDescentOctree( TVolTreeKernelType& pVolumeTree, GPUCacheType& pGpuCache, GvStructure::OctreeNode& pNode,
+		const float3 pSamplePosTree, const float pConeAperture, float& pNodeSizeTree, float3& pSampleOffsetInNodeTree,
+		GvVolumeTreeSamplerKernel< TVolTreeKernelType >& pBrickSampler, bool& pRequestEmitted )
+	{
+		// Useful variables initialization
+		uint nodeDepth = 0;
+		float3 nodePosTree = make_float3( 0.0f );
+		pNodeSizeTree = static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		float nodeSizeTreeInv = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
+		float voxelSizeTree = pNodeSizeTree / static_cast< float >( TVolTreeKernelType::BrickResolution::maxRes );
+
+		uint brickChildAddressEnc  = 0;
+		uint brickParentAddressEnc = 0;
+
+		float3 brickChildNormalizedOffset = make_float3( 0.0f );
+		float brickChildNormalizedScale  = 1.0f;
+
+		// Initialize the address of the first node in the "node pool".
+		// While traversing the data structure, this address will be
+		// updated to the one associated to the current traversed node.
+		// It will be used to fetch info of the node stored in then "node pool".
+		uint nodeTileAddress = pVolumeTree.rootAddress;
+
+		uint bitsToShift = 10;
+		uint initialTraversalMask = 0x00000400;	// Taking 10 digits and filling mask value in them
+		uint3 initialSamplePosValue = make_uint3( pSamplePosTree * pow(2.0, 10.0) );
+		uint3 initialSamplePosValueTmp = make_uint3(0);
+
+		float scaleFactor = 1.0 / pow(2.0, 10.0);
+		uint3 lastPosValue = make_uint3(0);
+
+		// Traverse the data structure from root node
+		// until a descent criterion is not fulfilled anymore.
+		bool descentSizeCriteria;
+		do
+		{
+			// Bitwise tree traversal
+			//http://www.merl.com/papers/docs/TR2002-41.pdf
+
+			// [ 1 ] - Update size parameters
+			pNodeSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current node size
+			voxelSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current voxel size
+			nodeSizeTreeInv		*= static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );			// current node resolution (nb nodes in a dimension)
+
+			// [ 2 ] - Update node info
+			//
+			// The goal is to fetch info of the current traversed node from the "node pool"
+			
+			// P* NodePosTree is the current origin which is shifted according to the chosen child node
+			// P* nodeChildAddressOffset is an offset ranging from 0-7 
+			
+			uint3 nodeChildCoordinates;
+			
+
+#ifdef USE_INTEGER_INDEX
+			// New code 1, uncomment this to run the new way with integers without using integers
+			// Note (Prashant) : Modify this for a general N^3
+			// --------------------------------------------
+
+			//----------------------------------------------
+			uint3 nodeOffsetInt;
+			nodeOffsetInt.x = ((initialSamplePosValue.x & initialTraversalMask) > 0);
+			nodeOffsetInt.y = ((initialSamplePosValue.y & initialTraversalMask) > 0);
+			nodeOffsetInt.z = ((initialSamplePosValue.z & initialTraversalMask) > 0);
+
+			initialSamplePosValueTmp.x = initialSamplePosValueTmp.x * 2 + nodeOffsetInt.x;
+			initialSamplePosValueTmp.y = initialSamplePosValueTmp.y * 2 + nodeOffsetInt.y;
+			initialSamplePosValueTmp.z = initialSamplePosValueTmp.z * 2 + nodeOffsetInt.z;
+
+			initialTraversalMask = initialTraversalMask >> 1;
+
+			nodePosTree = make_float3(pNodeSizeTree * initialSamplePosValueTmp.x, 
+									 pNodeSizeTree * initialSamplePosValueTmp.y, 
+									 pNodeSizeTree * initialSamplePosValueTmp.z);
+
+
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeOffsetInt );
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+
+			nodeChildCoordinates = nodeOffsetInt;
+#else 
+			// Original code, uncomment this to run the original way 
+			nodeChildCoordinates = make_uint3( nodeSizeTreeInv * ( pSamplePosTree - nodePosTree ) );
+
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates );// & nodeChildAddressMask;
+			
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+			nodePosTree = nodePosTree + pNodeSizeTree * make_float3( nodeChildCoordinates );
+#endif
+
+			// New code 0, uncomment this to run the new way with integers (and comment the code above)
+			// Note (Prashant) : Modify this for a general N^3
+			// --------------------------------------------
+			/*uint3 nodeOffsetInt;
+			//nodeOffsetInt.x = (0x000007FF & initialSamplePosValue.x) >> bitsToShift;
+			//nodeOffsetInt.y = (0x000007FF & initialSamplePosValue.y) >> bitsToShift;
+			//nodeOffsetInt.z = (0x000007FF & initialSamplePosValue.z) >> bitsToShift;
+
+			nodeOffsetInt.x = initialSamplePosValue.x >> bitsToShift;
+			nodeOffsetInt.y = initialSamplePosValue.y >> bitsToShift;
+			nodeOffsetInt.z = initialSamplePosValue.z >> bitsToShift;
+
+			nodePosTree = make_float3(pNodeSizeTree * nodeOffsetInt.x, 
+									 pNodeSizeTree * nodeOffsetInt.y, 
+									 pNodeSizeTree * nodeOffsetInt.z);
+
+			nodeOffsetInt.x &= 1; //(initialSamplePosValue.x & (initialTraversalMask >> bitsToShift)) >> (10 - bitsToShift);
+			nodeOffsetInt.y &= 1; //(initialSamplePosValue.y & (initialTraversalMask >> bitsToShift)) >> (10 - bitsToShift);
+			nodeOffsetInt.z &= 1; //(initialSamplePosValue.z & (initialTraversalMask >> bitsToShift)) >> (10 - bitsToShift);
+
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeOffsetInt );
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+
+			nodeChildCoordinates = nodeOffsetInt; */
+			//----------------------------------------------
+
+		
+
+
+			// New code 2, uncomment this to run the new way with integers without using integers
+			// Note (Prashant) : Modify this for a general N^3
+			// --------------------------------------------
+			/*uint3 nodeOffsetInt, nodeOffsetIntTmp;
+			nodeOffsetInt.x = initialSamplePosValue.x * scaleFactor;
+			nodeOffsetInt.y = initialSamplePosValue.y * scaleFactor;
+			nodeOffsetInt.z = initialSamplePosValue.z * scaleFactor;
+
+			nodeOffsetIntTmp = nodeOffsetInt;
+
+			nodePosTree = make_float3(pNodeSizeTree * nodeOffsetInt.x, 
+									 pNodeSizeTree * nodeOffsetInt.y, 
+									 pNodeSizeTree * nodeOffsetInt.z);
+
+			nodeOffsetInt.x = fabs(lastPosValue.x * 2.0 - nodeOffsetInt.x);
+			nodeOffsetInt.y = fabs(lastPosValue.y * 2.0 - nodeOffsetInt.y);
+			nodeOffsetInt.z = fabs(lastPosValue.z * 2.0 - nodeOffsetInt.z);
+
+			lastPosValue = nodeOffsetIntTmp;
+			
+			uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeOffsetInt );
+			uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+
+			nodeChildCoordinates = nodeOffsetInt; */
+			// --------------------------------------------
+
+			pVolumeTree.fetchOctreeNode( pNode, nodeAddress );
+
+			// Update brick info
+			if ( brickChildAddressEnc )
+			{
+				brickParentAddressEnc = brickChildAddressEnc;
+				brickChildNormalizedScale  = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );		// 0.5f;
+				brickChildNormalizedOffset = brickChildNormalizedScale * make_float3( nodeChildCoordinates );
+			}
+			else
+			{
+				brickChildNormalizedScale  *= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// 0.5f;
+				brickChildNormalizedOffset += brickChildNormalizedScale * make_float3( nodeChildCoordinates );
+			}
+			brickChildAddressEnc = pNode.hasBrick() ? pNode.getBrickAddressEncoded() : 0;
+
+			// Update descent condition
+			descentSizeCriteria = ( voxelSizeTree > pConeAperture ) && ( nodeDepth < k_maxVolTreeDepth );
+			
+			// Update octree depth
+			nodeDepth++;
+
+			// ---- Flag used data (the traversed one) ----
+
+			// Set current node as "used"
+			pGpuCache._nodeCacheManager.setElementUsage( nodeTileAddress );
+
+			// Set current brick as "used"
+			if ( pNode.hasBrick() )
+			{
+				pGpuCache._brickCacheManager.setElementUsage( pNode.getBrickAddress() );
+			}
+
+			// ---- Emit requests if needed (node subdivision or brick loading/producing) ----
+
+			// Process requests based on traversal strategy (priority on bricks or nodes)
+			if ( priorityOnBrick )
+			{
+				// Low resolution first						  
+				if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
+				{
+					pGpuCache.loadRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+				else if ( !pNode.hasSubNodes() && descentSizeCriteria && !pNode.isTerminal() )
+				{
+					pGpuCache.subDivRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+			}
+			else
+			{	 // High resolution immediatly
+				if ( descentSizeCriteria && !pNode.isTerminal() )
+				{
+					if ( ! pNode.hasSubNodes() )
+					{
+						pGpuCache.subDivRequest( nodeAddress );
+						pRequestEmitted = true;
+					}
+				}
+				else if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
+				{
+					pGpuCache.loadRequest( nodeAddress );
+					pRequestEmitted = true;
+				}
+			}
+
+			nodeTileAddress = pNode.getChildAddress().x;
+
+			bitsToShift--;
+			scaleFactor *= 2.0;
+		}
+		while ( descentSizeCriteria && pNode.hasSubNodes() );	// END of the data structure traversal
+
+		// Compute sample offset in node tree
+		pSampleOffsetInNodeTree = pSamplePosTree - nodePosTree;
+		
+		// Update brickSampler properties
+		if ( pNode.isBrick() )
+		{
+			pBrickSampler._nodeSizeTree = pNodeSizeTree;
+			pBrickSampler._sampleOffsetInNodeTree = pSampleOffsetInNodeTree;
+			pBrickSampler._scaleTree2BrickPool = pVolumeTree.brickSizeInCacheNormalized.x / pBrickSampler._nodeSizeTree;
+
+			//uint3 tmpAddressUnenc = GvStructure::OctreeNode::unpackBrickAddress( brickParentAddressEnc ) - make_uint3(1, 1, 1);
+			//uint tmpAddressEnc = GvStructure::OctreeNode:ackBrickAddress(tmpAddressUnenc);
+
+			pBrickSampler._brickParentPosInPool = pVolumeTree.brickCacheResINV * make_float3( GvStructure::OctreeNode::unpackBrickAddress( brickParentAddressEnc)) 
+							+ brickChildNormalizedOffset * pVolumeTree.brickSizeInCacheNormalized.x;
+
+			if ( brickChildAddressEnc )
+			{
+				//pBrickSampler.mipMapOn = true; // "true" is not sufficient :  when non parent, program is very slow.
+				pBrickSampler._mipMapOn = ( brickParentAddressEnc == 0 ) ? false : true;
+
+				pBrickSampler._brickChildPosInPool = make_float3( GvStructure::OctreeNode::unpackBrickAddress( brickChildAddressEnc ) ) * pVolumeTree.brickCacheResINV;
+			}
+			else
+			{
+				pBrickSampler._mipMapOn = false;
+				pBrickSampler._brickChildPosInPool  = pBrickSampler._brickParentPosInPool;
+				pBrickSampler._scaleTree2BrickPool *= brickChildNormalizedScale;
+			}
+		}
+	}

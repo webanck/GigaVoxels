@@ -1,0 +1,192 @@
+#ifndef _RLE_KERNEL_H_
+#define _RLE_KERNEL_H_
+
+#include <stdio.h>
+#include <cuda_runtime.h>
+
+__global__
+void kernel(int size, const unsigned char* input, unsigned char *output)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int offset = x + y * blockDim.x * gridDim.x;
+	output[offset] = input[offset];	
+}
+
+__global__
+void RLE_kernel(int size, const unsigned char* input, unsigned char *output)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	int offset = x + y * blockDim.x * gridDim.x;
+
+	__shared__ unsigned int nbElem;
+	__shared__ unsigned int *tabAddElem;
+	// Catch the number of element in brick compress with RLE
+	if ( threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 ) {
+		nbElem = (unsigned int)input[0];
+		tabAddElem = new unsigned int[nbElem];
+		tabAddElem[0] = 0;
+		for (unsigned int i = 1; i < nbElem; i++) {
+			tabAddElem[i] = tabAddElem[i-1] + (uint)input[ 2 * (i-1) + 1];
+		}
+	}
+
+	__syncthreads();
+
+	if (offset < nbElem) {
+		uint localOffsetRLE = 2 * offset + 1;
+	
+		// Catch the value of the RLE compression
+		unsigned char nbVal = input[ localOffsetRLE ];
+		// Retrieve voxel color previously generated on CPU
+		unsigned char color = input[ localOffsetRLE + 1 ];
+
+		//uint localOffset = atomicAdd( &addElem, (uint)nbVal ) + processID;
+		uint localOffset = tabAddElem[offset];
+
+		for ( uint i = 0; i < (uint)nbVal; i++ ) {
+			uint expOffset = localOffset + i;
+
+			if ( expOffset < size ) {
+				output[ expOffset ] = color ;
+			}
+		}
+		
+	}
+}
+
+__device__ int locked = 0;
+__device__
+bool try_lock ()
+{
+	int prev = atomicExch(&locked, 1);
+	if(prev == 0)
+		return true;
+	return false;
+}
+
+
+
+// __device__ 
+// unsigned int atomicAddRLE(unsigned int* nbElem, unsigned int* id, unsigned int val, unsigned int &idRet)
+// {
+// 	unsigned int* address_as_ull = (unsigned int*)nbElem;
+// 	unsigned int old = *address_as_ull, assumed;
+// 	while(try_lock() == false)
+// 		;
+// 	do {
+// 		assumed = old;
+// 		old = atomicCAS(address_as_ull, assumed, (val + assumed));
+// 		idRet = (*id);
+// 		(*id)++;
+// 	} while (assumed != old);
+// 	unlock();
+// 	return old;
+// }
+
+
+
+// __global__
+// void RLE_atomic_kernel(int size, const unsigned char* input, unsigned char *output)
+// {
+
+// 	__shared__ unsigned int nbElem;
+// 	__shared__ unsigned int id;
+// 	__shared__ unsigned int nb;
+// 	// Catch the number of element in brick compress with RLE
+	
+// 	if ( threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 ) {
+// 		id = 0;
+// 		nb = 0;
+// 		nbElem = (unsigned int)input[0];
+// 	}
+
+// 	__syncthreads();
+
+// 	unsigned int index;
+// 	unsigned int indexInCache = atomicAddRLE(&nb, &id, (unsigned int)input[2 * id + 1], index);
+
+// 	if (index < nbElem) {
+// 		unsigned int it = input[ 2 * index + 1 ];
+// 		unsigned int value = input[ 2 * index + 2 ];
+		
+// 		for (int i = 0; i < it; i++) {
+// 			if ( indexInCache < size )
+// 				output[indexInCache + i] = value;
+// 		}
+// 	}
+// }
+
+
+__global__
+void RLE_atomic_kernel(int size, const unsigned char* input, unsigned char *output)
+{
+
+	__shared__ unsigned int nbElem;
+	__shared__ unsigned int id;
+	__shared__ unsigned int nb;
+	// Catch the number of element in brick compress with RLE
+	
+	if ( threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 ) {
+		id = 0;
+		nb = 0;
+		nbElem = (unsigned int)input[0];
+	}
+
+	__syncthreads();
+
+	unsigned int index = atomicAdd(&id, 1);	
+	unsigned int indexInCache = 0;
+	
+	unsigned int k = index;
+	while (k != 0) {
+		indexInCache += input[ 2 * k + 1 ];
+		k--;
+	}
+	
+
+	if (index < nbElem) {
+		unsigned int it = input[ 2 * index + 1 ];
+		unsigned int value = input[ 2 * index + 2 ];
+		
+		for (int i = 0; i < it; i++) {
+			if ( indexInCache + i < size )
+				output[indexInCache + i] = value;
+		}
+	}
+}
+
+__global__
+void RLE_atomic_kernel(int size, const unsigned char* input, unsigned int *offset, unsigned char *output)
+{
+
+	__shared__ unsigned int nbElem;
+	__shared__ unsigned int id;
+	__shared__ unsigned int nb;
+	// Catch the number of element in brick compress with RLE
+	
+	if ( threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 ) {
+		id = 0;
+		nb = 0;
+		nbElem = (unsigned int)offset[0];
+	}
+
+	__syncthreads();
+
+	unsigned int index = atomicAdd(&id, 1);	
+	unsigned int indexInCache = (unsigned int)offset[index + 1];
+	
+	if (index < nbElem) {
+		unsigned int it = offset[ index + 2 ] - indexInCache;
+		unsigned int value = input[ index ];
+		
+		for (int i = 0; i < it; i++) {
+			if ( indexInCache + i < size )
+				output[indexInCache + i] = value;
+		}
+	}
+}
+
+
+#endif
