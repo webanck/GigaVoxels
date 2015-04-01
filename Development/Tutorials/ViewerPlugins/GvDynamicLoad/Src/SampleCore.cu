@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -126,16 +126,18 @@ SampleCore::SampleCore()
 	_translation[ 2 ] = -0.5f;
 
 	// Rotation used to position the GigaVoxels data structure
-	_rotation[ 0 ] = 0.0f;
-	_rotation[ 1 ] = 0.0f;
-	_rotation[ 2 ] = 0.0f;
-	_rotation[ 3 ] = 0.0f;
+	// _rotation[ 0 ] = 0.0f;
+	// _rotation[ 1 ] = 0.0f;
+	// _rotation[ 2 ] = 0.0f;
+	// _rotation[ 3 ] = 0.0f;
 
 	// Scale used to transform the GigaVoxels data structure
 	_scale = 1.0f;
 
 	// Light position
-	_lightPosition = make_float3(  1.f, 1.f, 1.f );
+	// _lightPosition = make_float3(  1.f, 1.f, 1.f );
+	// see the init method for it.
+	setLightPosition(1.f, 1.f, 1.f);
 }
 
 /******************************************************************************
@@ -196,10 +198,10 @@ void SampleCore::init()
 		//GV_CHECK_CUDA_ERROR( "cudaGLSetGLDevice" );
 		cudaSetDevice( gpuGetMaxGflopsDeviceId() );
 		GV_CHECK_CUDA_ERROR( "cudaSetDevice" );
-		
+
 		GvViewerGui::GvvApplication::get().setGPUComputingInitialized( true );
 	}
-	
+
 	// Compute the size of one element in the cache for nodes and bricks
 	size_t nodeElemSize = PipelineType::NodeTileResolution::numElements * sizeof( GvStructure::GvNode );
 	//size_t brickElemSize = RealBrickRes::numElements * GvCore::DataTotalChannelSize< PipelineType::DataTypeList >::value;
@@ -222,11 +224,11 @@ void SampleCore::init()
 	//set3DModelFilename( filename.toLatin1().constData() );
 	QString filename( get3DModelFilename().c_str() );
 
-	
+
 	// unsigned int dataResolution = get3DModelResolution();
 	// TO DO :
 	// Test empty and existence of filename
-	
+
 	GvUtils::GvDataLoader< DataType >* dataLoader = new GvUtils::GvDataLoader< DataType >(
 														filename.toStdString(), PipelineType::BrickTileResolution::get(), PipelineType::BrickTileBorderSize, true );
 
@@ -234,12 +236,13 @@ void SampleCore::init()
 	_producer = new ProducerType( 64 * 1024 * 1024, nodePoolRes.x * nodePoolRes.y * nodePoolRes.z );
 	_producer->attachProducer( dataLoader );
 
-	// Shader creation
-	ShaderType* shader = new ShaderType();
+	// Shaders type wrapper "creation"
+	ShaderType* shader = new ShaderType(); //pipeline's shader
 
 	// Pipeline initialization
 	_pipeline = new PipelineType();
 	_pipeline->initialize( NODEPOOL_MEMSIZE, BRICKPOOL_MEMSIZE, _producer, shader );
+
 
 	// Renderer initialization
 	_renderer = new RendererType( _pipeline->editDataStructure(), _pipeline->editCache() );
@@ -247,7 +250,7 @@ void SampleCore::init()
 	_pipeline->addRenderer( _renderer );
 
 	_pipeline->editDataStructure()->setMaxDepth( _maxVolTreeDepth );
-	
+
 	////------------------------------------------------------------
 	//// Typedef to access the channel in the data type list
 	//for ( int i = 0; i < GvCore::DataNumChannels< DataType >::value; i++ )
@@ -265,9 +268,10 @@ void SampleCore::init()
 	// Custom initialization
 	// Note : this could be done via an XML settings file loaded at initialization
 	// Need to initialize CUDA memory with light position
-	float x,y,z;
-	getLightPosition( x,y,z );
-	setLightPosition( x,y,z );
+	// float3 starting_light_position = make_float3(1.f, 1.f, 1.f);
+	//float x,y,z;
+	//getLightPosition( x,y,z );
+	// setLightPosition(starting_light_position.x, starting_light_position.y, starting_light_position.z);
 }
 
 /******************************************************************************
@@ -367,14 +371,14 @@ void SampleCore::draw()
 	glActiveTexture( GL_TEXTURE0 );
 	glBindTexture( GL_TEXTURE_RECTANGLE_EXT, 0 );
 	glDisable( GL_TEXTURE_RECTANGLE_EXT );
-	
+
 	glPopMatrix();
 	glMatrixMode( GL_MODELVIEW );
 	glPopMatrix();
 
 	// TEST - optimization due to early unmap() graphics resource from GigaVoxels
 	//_volumeTreeRenderer->doPostRender();
-	
+
 	// Update GigaVoxels info
 	/*_pipeline->editRenderer()*/_renderer->nextFrame();
 
@@ -385,16 +389,17 @@ void SampleCore::draw()
 	if ( _displayPerfmon )
 	{
 		GvPerfMon::CUDAPerfMon::get().displayFrameGL( _displayPerfmon - 1 );
-		
+
 		// SORTIE CONSOLE
 		// GvPerfMon::CUDAPerfMon::get().displayFrame();
 
 		// HOST
 		//GvPerfMon::CUDAPerfMon::get().displayFrameGL( 1 );
-		
+
 		// DEVICE
 		//GvPerfMon::CUDAPerfMon::get().displayFrameGL( 0 );
 	}
+	glEnable( GL_DEPTH_TEST );
 }
 
 /******************************************************************************
@@ -709,9 +714,12 @@ bool SampleCore::hasLight() const
  ******************************************************************************/
 void SampleCore::getLightPosition( float& pX, float& pY, float& pZ ) const
 {
-	pX = _lightPosition.x;
-	pY = _lightPosition.y;
-	pZ = _lightPosition.z;
+	// WARNING
+	// The given coordinates are in the voxels referential.
+	// Apply modelisation matrix applied on the GigaVoxels object to set light position correctly (world ref).
+	pX = _lightPosition.x + _translation[ 0 ];
+	pY = _lightPosition.y + _translation[ 1 ];
+	pZ = _lightPosition.z + _translation[ 2 ];
 }
 
 /******************************************************************************
@@ -726,14 +734,22 @@ void SampleCore::setLightPosition( float pX, float pY, float pZ )
 	// Update DEVICE memory with "light position"
 	//
 	// WARNING
-	// Apply inverse modelisation matrix applied on the GigaVoxels object to set light position correctly.
-	// Here a glTranslatef( -0.5f, -0.5f, -0.5f ) has been used.
-	_lightPosition.x = pX/* - _translation[ 0 ]*/;
-	_lightPosition.y = pY/* - _translation[ 1 ]*/;
-	_lightPosition.z = pZ/* - _translation[ 2 ]*/;
+	// The retrieved coordinates are in the world referential.
+	// Apply inverse modelisation matrix applied on the GigaVoxels object to set light position correctly (voxels ref).
+	_lightPosition.x = pX - _translation[ 0 ];
+	_lightPosition.y = pY - _translation[ 1 ];
+	_lightPosition.z = pZ - _translation[ 2 ];
 
 	// Update device memory
 	GV_CUDA_SAFE_CALL( cudaMemcpyToSymbol( cLightPosition, &_lightPosition, sizeof( _lightPosition ), 0, cudaMemcpyHostToDevice ) );
+
+	// float old_position[4];
+	// glGetLightfv(GL_LIGHT0, GL_POSITION, old_position);
+	// Update the position of the OpenGL light.
+	float position[4] = {_lightPosition.x, _lightPosition.y, _lightPosition.z, 0.f};
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
+	// cout << "position_change:" << pX << "," << pY << "," << pZ << endl;
+	// cout << "old_position:" << old_position[0] << "," << old_position[1] << "," << old_position[2] << "," << old_position[3] << endl;
 }
 
 /******************************************************************************
