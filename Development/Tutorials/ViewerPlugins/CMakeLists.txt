@@ -9,7 +9,7 @@ cmake_minimum_required (VERSION 2.8) # needed to have the findCUDA module
 # Use colored output
 set (CMAKE_COLOR_MAKEFILE ON)
 
-# Force CMake to not put in the rules that re-run CMake 
+# Force CMake to not put in the rules that re-run CMake
 # CMakeLists.txt files are not added and not used when (re)building projects
 # set (CMAKE_SUPPRESS_REGENERATION ON)
 
@@ -49,7 +49,7 @@ MESSAGE ( STATUS "" )
 
 # Search for CUDA
 MESSAGE ( STATUS "REQUIRED PACKAGE : CUDA 5.0" )
-find_package (CUDA REQUIRED) # TO DO : utiliser FindCUDA à la place
+find_package (CUDA REQUIRED) # TO DO : utiliser FindCUDA ï¿½ la place
 if (CUDA_FOUND)
 	message (STATUS "system has CUDA")
 	message (STATUS "CUDA version : ${CUDA_VERSION_STRING}")
@@ -61,7 +61,7 @@ MESSAGE ( STATUS "" )
 
 # Search for OpenGL
 MESSAGE ( STATUS "REQUIRED PACKAGE : OpenGL" )
-find_package (OpenGL REQUIRED) # TO DO : utiliser FindOpenGL à la place
+find_package (OpenGL REQUIRED) # TO DO : utiliser FindOpenGL ï¿½ la place
 if (OPENGL_FOUND)
 	message (STATUS "system has OpenGL")
 endif()
@@ -118,7 +118,7 @@ endif ()
 # Initialize some environment variables
 #----------------------------------------------------------------
 
-# Tell CMake to first search in directories listed in CMAKE_MODULE_PATH when 
+# Tell CMake to first search in directories listed in CMAKE_MODULE_PATH when
 # using FIND_PACKAGE() or INCLUDE()
 SET (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../../CMake")
 
@@ -176,6 +176,8 @@ list(APPEND CUDA_NVCC_FLAGS "-arch=sm_20")
 
 # Procedural generation
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleSphere")
+add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleCube")
+#add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleTorus")
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvMandelbrotSet")
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSlisesix")
 

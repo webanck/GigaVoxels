@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -179,7 +179,7 @@ void GvvPipelineInterfaceViewer::init()
 		//	}
 		//}
 	}
-	//----------- A priori crash lorsque c'est appelé 2 fois ??------
+	//----------- A priori crash lorsque c'est appelï¿½ 2 fois ??------
 	// Initialize CUDA with OpenGL Interoperability
 	//cudaGLSetGLDevice( cutGetMaxGflopsDeviceId() );	// deprecated, use cudaSetDevice()
 	//CUT_CHECK_ERROR( "cudaGLSetGLDevice" );
@@ -245,7 +245,7 @@ void GvvPipelineInterfaceViewer::paintGL()
 	//{
 		// Clears screen, set model view matrix...
 		preDraw();
-		
+
 		// Used defined method. Default calls draw()
 		/*if ( camera()->frame()->isManipulated() )
 		{
@@ -255,11 +255,13 @@ void GvvPipelineInterfaceViewer::paintGL()
 		{*/
 			draw();
 		//}
-		
+
 		// Add visual hints: axis, camera, grid...
 		//if ( _showFPS || _showGrid || _showAxis )
 		if ( FPSIsDisplayed() || axisIsDrawn() || gridIsDrawn() )
 		{
+
+			glEnable( GL_DEPTH_TEST );
 			postDraw();
 		}
 	//}
@@ -303,7 +305,7 @@ void GvvPipelineInterfaceViewer::draw()
 		if ( mPipeline->hasLight() )
 		{
 			_manipulatedFrame->getPosition( lightPos[ 0 ], lightPos[ 1 ], lightPos[ 2 ] );
-	
+
 			// Should not add a cudaMemcpy() call to update light position, if it is static
 			//mPipeline->setLightPosition( lightPos[ 0 ], lightPos[ 1 ], lightPos[ 2 ] );
 		}
@@ -315,7 +317,7 @@ void GvvPipelineInterfaceViewer::draw()
 		// Specify color to clear the color buffer
 		const QColor& color = backgroundColor();
 		mPipeline->setClearColor( color.red(), color.green(), color.blue(), color.alpha() );
-		
+
 		// Render the GigaVoxels scene
 		mPipeline->draw();
 
@@ -332,7 +334,7 @@ void GvvPipelineInterfaceViewer::draw()
 				timeBudgetMonitoringView->onCurveChanged( frame, frameDuration );
 			}
 		}
-		
+
 		// Handle "data production" monitoring if activated
 		if ( mPipeline->hasDataProductionMonitoring() )
 		{
@@ -630,7 +632,7 @@ bool GvvPipelineInterfaceViewer::captureVideo( bool pFlag )
 	{
 		disconnect( this, SIGNAL( drawFinished( bool ) ), this, SLOT( saveSnapshot( bool ) ) );
 	}
-	
+
 	//ffmpeg.exe -i image-%04d.jpg -r 60 File-Out.mp4
 
 	return true;

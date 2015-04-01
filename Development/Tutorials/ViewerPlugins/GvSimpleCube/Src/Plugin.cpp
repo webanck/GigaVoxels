@@ -2,9 +2,13 @@
  * GigaVoxels is a ray-guided streaming library used for efficient
  * 3D real-time rendering of highly detailed volumetric scenes.
  *
- * Copyright (C) 2011-2012 INRIA <http://www.inria.fr/>
+ * Copyright (C) 2011-2013 INRIA <http://www.inria.fr/>
  *
  * Authors : GigaVoxels Team
+ *
+ * GigaVoxels is distributed under a dual-license scheme.
+ * You can obtain a specific license from Inria at gigavoxels-licensing@inria.fr.
+ * Otherwise the default license is the GPL version 3.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
+/** 
  * @version 1.0
  */
 
@@ -32,13 +36,11 @@
 
 // Project
 #include "PluginConfig.h"
+#include "CustomEditor.h"
 
 // System
 #include <cassert>
 #include <iostream>
-
-// GigaVoxels
-#include <GvUtils/GvPluginManager.h>
 
 // STL
 #include <sstream>
@@ -49,26 +51,20 @@
 
 // Project
 #include "SampleCore.h"
-#include "CustomEditor.h"
 
 // GvViewer
+#include <GvvPluginManager.h>
 #include <GvvApplication.h>
 #include <GvvMainWindow.h>
 #include <Gvv3DWindow.h>
 #include <GvvPipelineManager.h>
 #include <GvvEditorWindow.h>
-#include <GvvDataLoaderDialog.h>
+#include <GvvPipelineEditor.h>
 #include <GvvPipelineInterfaceViewer.h>
-
-// Qt
-#include <QFileDialog>
-
+	
 /******************************************************************************
  ****************************** NAMESPACE SECTION *****************************
  ******************************************************************************/
-
-// GigqVoxels
-using namespace GvUtils;
 
 // VtViewer
 using namespace GvViewerCore;
@@ -90,12 +86,12 @@ using namespace std;
  ******************************************************************************/
 
 /******************************************************************************
- *
+ * 
  ******************************************************************************/
-extern "C" GVDYNAMICLOAD_EXPORT GvPluginInterface* createPlugin( GvPluginManager& pManager )
+extern "C" GVSIMPLESPHERE_EXPORT GvvPluginInterface* createPlugin( GvvPluginManager& pManager )
 {
-    //return new GvMyPlugin( pManager );
-	GvMyPlugin* plugin = new GvMyPlugin( pManager );
+    //return new Plugin( pManager );
+	Plugin* plugin = new Plugin( pManager );
 	assert( plugin != NULL );
 
 	return plugin;
@@ -104,19 +100,19 @@ extern "C" GVDYNAMICLOAD_EXPORT GvPluginInterface* createPlugin( GvPluginManager
 /******************************************************************************
  * Default constructor
  ******************************************************************************/
-GvMyPlugin::GvMyPlugin( GvPluginManager& pManager )
-:	mManager( pManager )
-,	mName( "GvDynamicLoadPlugin" )
-,	mExportName( "Format A" )
+Plugin::Plugin( GvvPluginManager& pManager )
+:	_manager( pManager )
+,	_name( "GvSimpleSpherePlugin" )
+,	_exportName( "Format A" )
 ,	_pipeline( NULL )
 {
 	initialize();
 }
 
 /******************************************************************************
- * Default destructor
+ * Default constructor
  ******************************************************************************/
-GvMyPlugin::~GvMyPlugin()
+Plugin::~Plugin()
 {
 	finalize();
 }
@@ -124,44 +120,8 @@ GvMyPlugin::~GvMyPlugin()
 /******************************************************************************
  *
  ******************************************************************************/
-void GvMyPlugin::initialize()
+void Plugin::initialize()
 {
-	// TO DO
-	//
-	// Check voxel datatypes with the help of helper functions :
-	// - number of channels : GvCore::DataNumChannels< DataType >::value
-	// and
-	// - data type given its index : GvCore::typeToString< GvCore::DataChannelType< DataType, index > >()
-#ifdef _DATA_HAS_NORMALS_
-	//std::cout << "\nVoxel datatype store 2 channels." << std::endl;
-#else
-	//std::cout << "\nVoxel datatype store only 1 channel." << std::endl;
-#endif
-
-	//-----------------------------------------------
-	// PROBLEM :
-	// le dialog semble provoquer un draw() sans qu'il y ait eu un resize donc un init du pipeline => crash OpenGL...
-	QString modelFilename;
-	//unsigned int modelResolution;
-	{	// "{" is used to destroy the widget....
-	/*if ( _pipeline != NULL )
-	{*/
-	//	if ( _pipeline->has3DModel() )
-	//	{
-			GvvDataLoaderDialog dataLoaderDialog( NULL );
-			dataLoaderDialog.exec();
-
-			if ( dataLoaderDialog.result() == QDialog::Accepted )
-			{
-				//_pipeline->set3DModelFilename( dataLoaderDialog.get3DModelFilename().toLatin1().constData() );
-				modelFilename = dataLoaderDialog.get3DModelFilename();
-				//modelResolution = dataLoaderDialog.get3DModelResolution();
-			}
-	//	}
-	//}
-	} // "}" is used to destroy the widget....
-	//-----------------------------------------------
-
 	GvViewerGui::GvvApplication& application = GvViewerGui::GvvApplication::get();
 	GvViewerGui::GvvMainWindow* mainWindow = application.getMainWindow();
 
@@ -171,17 +131,6 @@ void GvMyPlugin::initialize()
 
 	// Create the GigaVoxels pipeline
 	_pipeline = new SampleCore();
-
-	//-----------------------------------------------
-	if ( _pipeline != NULL )
-	{
-		_pipeline->set3DModelFilename( modelFilename.toLatin1().constData() );
-		//_pipeline->set3DModelResolution( modelResolution );
-
-		// TO DO
-		// add resolution too !!!
-	}
-	//-----------------------------------------------
 
 	// Pipeline BEGIN
 	if ( _pipeline != NULL )
@@ -201,8 +150,11 @@ void GvMyPlugin::initialize()
 /******************************************************************************
  *
  ******************************************************************************/
-void GvMyPlugin::finalize()
+void Plugin::finalize()
 {
+	// TO DO
+	// add a onAboutToBeRempved signal
+
 	// Tell the viewer that a pipeline is about to be removed
 	GvvPipelineManager::get().removePipeline( _pipeline );
 
@@ -212,16 +164,16 @@ void GvMyPlugin::finalize()
 
 	GvViewerGui::GvvApplication& application = GvViewerGui::GvvApplication::get();
 	GvViewerGui::GvvMainWindow* mainWindow = application.getMainWindow();
-
+	
 	// Register custom editor's factory method
 	GvViewerGui::GvvEditorWindow* editorWindow = mainWindow->getEditorWindow();
 	editorWindow->unregisterEditorFactory( SampleCore::cTypeName );
 }
 
 /******************************************************************************
- *
+ * 
  ******************************************************************************/
-const string& GvMyPlugin::getName()
+const string& Plugin::getName()
 {
-    return mName;
+    return _name;
 }

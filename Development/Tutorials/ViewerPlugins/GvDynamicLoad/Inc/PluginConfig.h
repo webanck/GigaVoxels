@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -30,7 +30,7 @@
 #ifndef GVDYNAMICLOAD_CONFIG_H
 #define GVDYNAMICLOAD_CONFIG_H
 
-//*** Plugin Library 
+//*** Plugin Library
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -39,7 +39,7 @@
 /**
  * User type definitions
  */
-//#define _DATA_HAS_NORMALS_
+#define _DATA_HAS_NORMALS_
 
 /******************************************************************************
  ************************** LIBRARY CONFIGURATION *****************************

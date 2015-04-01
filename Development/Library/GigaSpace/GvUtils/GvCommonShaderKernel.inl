@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -68,7 +68,7 @@ __forceinline__ void GvCommonShaderKernel::postShadeImpl()
 /******************************************************************************
  * This method returns the cone aperture for a given distance.
  *
- * @param pTTree the current distance along the ray's direction.
+ * @param tTree the current distance along the ray's direction.
  *
  * @return the cone aperture
  ******************************************************************************/
