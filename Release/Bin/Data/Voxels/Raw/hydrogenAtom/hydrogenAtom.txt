@@ -1,9 +1,0 @@
-http://www.gris.uni-tuebingen.de/edu/areas/scivis/volren/datasets/datasets.html
-
-All datasets are binary, storing 8bit voxels for all slices, for all scanlines, and for all voxels.
-
-Name Hydrogen Atom
-Size 128x128x128
-Spacing 1:1:1
-Description Simulation of the spatial probability distribution of the electron in an hydrogen atom, residing in a strong magnetic field (more).
-Courtesy SFB 382 of the German Research Council (DFG).

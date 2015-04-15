@@ -1,6 +1,0 @@
---- begin of file
-# A sphere -1 0 0 with a 'radius' (a/2) of 2
-# "s" center.x center.y center.z radius
-# s x y z r
-s 0 0 0 2
---- end of file

@@ -1,9 +1,0 @@
-http://www.gris.uni-tuebingen.de/edu/areas/scivis/volren/datasets/datasets.html
-
-All datasets are binary, storing 8bit voxels for all slices, for all scanlines, and for all voxels.
-
-Name Skull
-Size 256x256x256
-Spacing 1:1:1
-Description Rotational C-arm x-ray scan of phantom of a human skull.
-Courtesy Siemens Medical Solutions, Forchheim, Germany.
