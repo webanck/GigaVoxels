@@ -120,8 +120,11 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 			const float3 diffuse	= make_float3(1.f);
 			const float3 specular	= make_float3(0.9f);
 
+			//Shadows.
+			const float light_intensity = marchShadowRay<BrickSamplerType>(brickSampler, samplePosScene, rayStep, coneAperture);
+			// const float light_intensity = 1.f;
 			//Common shading.
-			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular);
+			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
 			// -- [ Opacity correction ] --
 			// The standard equation :
 			//		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
@@ -389,8 +392,8 @@ void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::initialize(Pip
 template <typename BrickSamplerType>
 __device__
 void ShadowRayShaderKernel::runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture) {
-	_accColor.x = 0.5f;
-	_accColor.y = 0.5f;
-	_accColor.z = 0.5f;
-	_accColor.w = 0.5f;
+	// _accColor.x = 0.5f;
+	// _accColor.y = 0.5f;
+	// _accColor.z = 0.5f;
+	// _accColor.w = 0.5f;
 }
