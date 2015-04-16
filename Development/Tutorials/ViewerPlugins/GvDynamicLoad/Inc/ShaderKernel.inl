@@ -99,7 +99,7 @@ inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shade
 template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 template <typename BrickSamplerType>
 __device__
-inline void ShaderKernel::runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture) {
+inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture) {
 	//Retrieve material color from voxel's attached data.
 	const float4 material_color = brickSampler.template getValue<0>(coneAperture);
 	const float alpha = material_color.w;
