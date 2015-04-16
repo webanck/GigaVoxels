@@ -77,6 +77,9 @@ class ShaderKernel:
 	 **************************************************************************/
 
 public:
+	/******************************* TYPES ************************************/
+	typedef TDataStructureType DataStructureType;
+	typedef TCacheType CacheType;
 
 	/******************************* ATTRIBUTES *******************************/
 
