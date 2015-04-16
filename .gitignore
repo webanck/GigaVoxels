@@ -22,3 +22,7 @@
 ###############################
 Generated_Linux
 Release
+
+# Compiled Doxygen documentation #
+##################################
+Development/Documents/Doxygen/html
