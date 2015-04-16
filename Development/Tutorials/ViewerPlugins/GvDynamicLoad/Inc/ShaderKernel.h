@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -59,16 +59,17 @@ __constant__ float3 cLightPosition;
  ****************************** CLASS DEFINITION ******************************
  ******************************************************************************/
 
-/** 
+/**
  * @class ShaderLoadKernel
  *
  * @brief The ShaderLoadKernel struct provides...
  *
  * ...
  */
-class ShaderKernel
-:	public GvUtils::GvCommonShaderKernel
-,	public GvRendering::GvIRenderShader< ShaderKernel >
+template <typename TProducerType, typename TDataStructureType, typename TCacheType>
+class ShaderKernel:
+	public GvUtils::GvCommonShaderKernel,
+	public GvRendering::GvIRenderShader< ShaderKernel<TProducerType, TDataStructureType, TCacheType> >
 {
 
 	/**************************************************************************
@@ -112,6 +113,18 @@ public:
 	inline void runImpl( const BrickSamplerType& brickSampler, const float3 samplePosScene,
 		const float3 rayDir, float& rayStep, const float coneAperture );
 
+	/**
+	* Trace a ray from a sampled voxel to light to integrate light absorbtion.
+	*
+	* @return The remaining light intensity (1.0 for full light, 0.0 for full shadow).
+	*/
+	template <typename BrickSamplerType>
+	__device__
+	float marchShadowRay(const BrickSamplerType& brickSampler, const float3 samplePosScene, float& rayStep, const float screenConeAperture);
+
+	__host__
+	static void initialize(PipelineType * pPipeline);
+
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************
 	 **************************************************************************/
@@ -132,6 +145,27 @@ private:
 
 	/******************************** METHODS *********************************/
 
+};
+
+
+class ShadowRayShaderKernel:
+	public GvUtils::GvCommonShaderKernel,
+	public GvRendering::GvIRenderShader<ShadowRayShaderKernel>
+	// ,public GvUtils::GvSimpleHostShader<ShadowRayShaderKernel>
+{
+public:
+	/**
+	* ...
+	*
+	* @param brickSampler ...
+	* @param samplePosScene ...
+	* @param rayDir ...
+	* @param rayStep ...
+	* @param coneAperture ...
+	*/
+	template <typename BrickSamplerType>
+	__device__
+	void runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture);
 };
 
 /**************************************************************************
