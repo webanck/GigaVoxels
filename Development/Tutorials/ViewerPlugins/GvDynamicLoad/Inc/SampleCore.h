@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -67,7 +67,10 @@ template< typename TDataStructureType, typename TDataProductionManager >
 class Producer;
 
 // Custom Shader
+template<typename TProducerType, typename TDataStructureType, typename TCacheType>
 class ShaderKernel;
+// Custom shadows Shader
+class ShadowRayShaderKernel;
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -101,9 +104,11 @@ typedef Producer< DataStructureType, DataProductionManagerType > ProducerType;
 // Defines the type of the shader
 typedef GvUtils::GvSimpleHostShader
 <
-	ShaderKernel
+	ShaderKernel<ProducerType, DataStructureType, DataProductionManagerType>
 >
 ShaderType;
+//The shadows shader.
+typedef GvUtils::GvSimpleHostShader<ShadowRayShaderKernel> ShadowsShaderType;
 
 // Define the type of renderer
 typedef GvRendering::GvRendererCUDA< DataStructureType, DataProductionManagerType, ShaderType > RendererType;
@@ -122,7 +127,7 @@ PipelineType;
  ****************************** CLASS DEFINITION ******************************
  ******************************************************************************/
 
-/** 
+/**
  * @class SampleCore
  *
  * @brief The SampleCore class provides a helper class containing a	GigaVoxels pipeline.
@@ -173,7 +178,7 @@ public:
 	// * @return the type name of this browsable
 	// */
 	//virtual const char* getTypeName() const;
-		
+
 	/**
      * Gets the name of this browsable
      *
@@ -243,14 +248,14 @@ public:
 	 * @param pZ the Z brick resolution
 	 */
 	virtual void getDataStructureBrickResolution( unsigned int& pX, unsigned int& pY, unsigned int& pZ ) const;
-	
+
 	/**
 	 * Get the max depth.
 	 *
 	 * @return the max depth
 	 */
 	virtual unsigned int getRendererMaxDepth() const;
-	
+
 	/**
 	 * Set the max depth.
 	 *
@@ -278,14 +283,14 @@ public:
 	 * @return the max number of requests
 	 */
 	virtual unsigned int getCacheMaxNbBrickLoads() const;
-	
+
 	/**
 	 * Set the max number of requests of brick of voxel loads.
 	 *
 	 * @param pValue the max number of requests
 	 */
 	virtual void setCacheMaxNbBrickLoads( unsigned int pValue );
-	
+
 	/**
 	 * Set the request strategy indicating if, during data structure traversal,
 	 * priority of requests is set on brick loads or on node subdivisions first.
