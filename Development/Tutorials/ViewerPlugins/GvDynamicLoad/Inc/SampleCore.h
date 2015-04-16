@@ -108,7 +108,11 @@ typedef GvUtils::GvSimpleHostShader
 >
 ShaderType;
 //The shadows shader.
-typedef GvUtils::GvSimpleHostShader<ShadowRayShaderKernel> ShadowsShaderType;
+typedef GvUtils::GvSimpleHostShader
+<
+	ShadowRayShaderKernel
+>
+ShadowsShaderType;
 
 // Define the type of renderer
 typedef GvRendering::GvRendererCUDA< DataStructureType, DataProductionManagerType, ShaderType > RendererType;
