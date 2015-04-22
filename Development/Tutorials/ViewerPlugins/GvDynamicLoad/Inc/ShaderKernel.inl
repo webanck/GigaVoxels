@@ -129,7 +129,7 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 			const float3 specular	= make_float3(0.9f);
 
 			//Shadows.
-			const float light_intensity = marchShadowRay<TSamplerType>(pBrickSampler, pSamplePosScene, pRayStep, pConeAperture);
+			const float light_intensity = marchShadowRay<TSamplerType>(pBrickSampler, pGpuCache, pSamplePosScene, pRayStep, pConeAperture);
 			//Common shading.
 			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
 			// -- [ Opacity correction ] --
@@ -161,17 +161,23 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 }
 
 template <typename TProducerType, typename TDataStructureType, class TCacheType>
-template <typename BrickSamplerType>
+template <typename TSamplerType, class TGPUCacheType>
 __device__
-float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRay(const BrickSamplerType& brickSampler, const float3 samplePosScene, float& rayStep, const float screenConeAperture) {
+float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRay(
+	const TSamplerType& pBrickSampler,
+	TGPUCacheType& pGpuCache,
+	const float3 pSamplePosScene,
+	float& pRayStep,
+	const float pScreenConeAperture
+) {
 
-	const float3 lightVec 		= samplePosScene - cLightPosition;
+	const float3 lightVec 		= pSamplePosScene - cLightPosition;
 	const float3 lightDirection = normalize(lightVec);
 	const float  lightDistance 	= length(lightVec);
 	const float  lightDiameter	= 0.f; //a parameter to be: light tweaking if not point light
 	// const float sampleDiameter = ???? => retrieved during structure traversal
 
-	float coneAperture = screenConeAperture; //The cone aperture is initialized with the cone aperture which yielded the current sample.
+	float coneAperture = pScreenConeAperture; //The cone aperture is initialized with the cone aperture which yielded the current sample.
 	float marched_length = 0.f;
 	// float light_intensity = 1.f; //We are considering a light intensity which can only decrease.
 	//TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (outside empty).
@@ -188,13 +194,13 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 		// or cone aperture is greater than voxel size.
 		float sampleDiameter = 0.f;
 		float3 sampleOffsetInNodeTree = make_float3(0.f);
-		BrickSamplerType new_brickSampler;
+		TSamplerType new_brickSampler;
 		bool modifInfoWriten = false;
 
 		// // bool TPriorityOnBrick = true; //TPriorityOnBrick = ? => bool(true)
 		//typename TDataStructureType::VolTreeKernelType pDataStructure = _dataStructure->volumeTreeKernel();//pDataStructure = ?
 		//TCacheType * pCache = _cache;//pCache = ?
-		const float3 samplePosTree = samplePosScene;//samplePosTree != samplePosScene ?
+		const float3 samplePosTree = pSamplePosScene;//samplePosTree != samplePosScene ?
 		const float const_coneAperture = coneAperture;
 		const float3 pRayDirTree = lightDirection; //pRayDirTree = ?
 
@@ -228,7 +234,7 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 			marched_length += rayLengthInNodeTree;
 		} else {
 			// Where the "shading is done": just accumulating alpha from brick samples.
-			const float3 pRayStartTree = samplePosScene; //pRayStartTree = ?
+			const float3 pRayStartTree = pSamplePosScene; //pRayStartTree = ?
 			const float ptTree = marched_length; //ptTree = ?
 			//TODO: pourquoi que 2 arguments aux templates?? template<bool TFastUpdateMode, bool TPriorityOnBrick, class TVolumeTreeKernelType , class TSampleShaderType , class TGPUCacheType >
 			//->type inféré automatiquement?

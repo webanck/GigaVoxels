@@ -127,9 +127,15 @@ public:
 	*
 	* @return The remaining light intensity (1.0 for full light, 0.0 for full shadow).
 	*/
-	template <typename BrickSamplerType>
+	template <typename TSamplerType, class TGPUCacheType>
 	__device__
-	float marchShadowRay(const BrickSamplerType& brickSampler, const float3 samplePosScene, float& rayStep, const float screenConeAperture);
+	float marchShadowRay(
+		const TSamplerType& pBrickSampler,
+		TGPUCacheType& pGpuCache,
+		const float3 pSamplePosScene,
+		float& pRayStep,
+		const float pScreenConeAperture
+	);
 
 	__host__
 	static void initialize(PipelineType * pPipeline);
