@@ -37,10 +37,10 @@
 #include <GvRendering/GvSamplerKernel.h>
 
 //Globals for pipeline access from CUDA shader.
-__device__ typename ShaderType::KernelType::DataStructureType * G_D_DATA_STRUCTURE;
-__device__ typename ShaderType::KernelType::DataStructureType::VolTreeKernelType * G_D_DATA_STRUCTURE_KERNEL;
-__device__ typename ShaderType::KernelType::CacheType * G_D_CACHE;
-__device__ typename ShaderType::KernelType::CacheType::DataProductionManagerKernelType G_D_CACHE_DPM;
+__device__ typename ShaderType::KernelType::DataStructureType ** G_D_DATA_STRUCTURE;
+__device__ typename ShaderType::KernelType::DataStructureType::VolTreeKernelType ** G_D_DATA_STRUCTURE_KERNEL;
+__device__ typename ShaderType::KernelType::CacheType ** G_D_CACHE;
+__device__ typename ShaderType::KernelType::CacheType::DataProductionManagerKernelType * G_D_CACHE_DPM;
 
 /******************************************************************************
  ****************************** INLINE DEFINITION *****************************
@@ -98,31 +98,38 @@ inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shade
  * @param coneAperture ...
  ******************************************************************************/
 template <typename TProducerType, typename TDataStructureType, typename TCacheType>
-template <typename BrickSamplerType>
+template <typename TSamplerType, typename TGPUCacheType>
 __device__
-inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture) {
+inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl(
+	const TSamplerType& pBrickSampler,
+	TGPUCacheType& pGpuCache,
+	const float3 pSamplePosScene,
+	const float3 pRayDir,
+	float& pRayStep,
+	const float pConeAperture
+) {
 	//Retrieve material color from voxel's attached data.
-	const float4 material_color = brickSampler.template getValue<0>(coneAperture);
+	const float4 material_color = pBrickSampler.template getValue<0>(pConeAperture);
 	const float alpha = material_color.w;
 
 	//Process only visible voxels.
 	if(alpha > 0.f) {
 		//Retrieve normal from voxel's attached data.
-		const float4 normal  = brickSampler.template getValue<1>(coneAperture);
+		const float4 normal  = pBrickSampler.template getValue<1>(pConeAperture);
 		const float3 normal3 = make_float3(normal.x, normal.y, normal.z);
 
 		//Process only data with non null normal.
 		if(length(normal3) > 0.f) {
 			const float3 normalVec 	= normalize(normal3);
 			const float3 color 		= make_float3(material_color.x, material_color.y, material_color.z);
-			const float3 lightVec 	= normalize(cLightPosition - samplePosScene);
-			const float3 viewVec 	= -1.f * rayDir;
+			const float3 lightVec 	= normalize(cLightPosition - pSamplePosScene);
+			const float3 viewVec 	= -1.f * pRayDir;
 			const float3 ambient	= make_float3(0.2f);
 			const float3 diffuse	= make_float3(1.f);
 			const float3 specular	= make_float3(0.9f);
 
 			//Shadows.
-			const float light_intensity = marchShadowRay<BrickSamplerType>(brickSampler, samplePosScene, rayStep, coneAperture);
+			const float light_intensity = marchShadowRay<TSamplerType>(pBrickSampler, pSamplePosScene, pRayStep, pConeAperture);
 			//Common shading.
 			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
 			// -- [ Opacity correction ] --
@@ -130,7 +137,7 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 			//		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
 			// must take alpha correction into account
 			// NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
-			const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, rayStep * 512.f));//pourquoi 512??
+			const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * 512.f));//pourquoi 512??
 			const float3 corrected_color = shaded_color / alpha * alpha_correction;
 			_accColor.x += corrected_color.x;
 			_accColor.y += corrected_color.y;
@@ -153,13 +160,10 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 	}
 }
 
-template <typename TProducerType, typename TDataStructureType, typename TCacheType>
+template <typename TProducerType, typename TDataStructureType, class TCacheType>
 template <typename BrickSamplerType>
 __device__
 float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRay(const BrickSamplerType& brickSampler, const float3 samplePosScene, float& rayStep, const float screenConeAperture) {
-
-	// The shader used for shadow ray marching.
-	ShadowRayShaderKernel shader;
 
 	const float3 lightVec 		= samplePosScene - cLightPosition;
 	const float3 lightDirection = normalize(lightVec);
@@ -171,6 +175,7 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 	float marched_length = 0.f;
 	// float light_intensity = 1.f; //We are considering a light intensity which can only decrease.
 	//TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (outside empty).
+	ShadowRayShaderKernel shader; // The shader used for shadow ray marching.
 
 	while(marched_length < lightDistance && shader.getColor().w < 1.f) {
 
@@ -183,7 +188,6 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 		// or cone aperture is greater than voxel size.
 		float sampleDiameter = 0.f;
 		float3 sampleOffsetInNodeTree = make_float3(0.f);
-		//GvRendering::GvSamplerKernel<typename TDataStructureType::VolTreeKernelType> new_brickSampler;
 		BrickSamplerType new_brickSampler;
 		bool modifInfoWriten = false;
 
@@ -203,10 +207,10 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 		>(
 			//pDataStructure,
 			//*pCache,
-			*G_D_DATA_STRUCTURE_KERNEL,
+			**G_D_DATA_STRUCTURE_KERNEL,
 			//(G_D_CACHE->getKernelObject()),
 			//new_cache,
-			G_D_CACHE_DPM,
+			*G_D_CACHE_DPM,
 			node,
 			samplePosTree,
 			const_coneAperture,
@@ -239,11 +243,11 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 				/**pDataStructure,
 				*_shadowsShader,
 				*pCache,*/
-				*G_D_DATA_STRUCTURE_KERNEL,
+				**G_D_DATA_STRUCTURE_KERNEL,
 				shader,
 				//*G_D_CACHE,
 				//new_cache,
-				G_D_CACHE_DPM,
+				*G_D_CACHE_DPM,
 				pRayStartTree,
 				pRayDirTree,
 				ptTree,
@@ -266,20 +270,21 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 __host__
 void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::initialize(PipelineType * pPipeline) {
-	cudaMalloc((void **)&G_D_DATA_STRUCTURE_KERNEL, sizeof(TDataStructureType *));
-	cudaMalloc((void **)&G_D_DATA_STRUCTURE_KERNEL, sizeof(typename TDataStructureType::VolTreeKernelType *));
-	cudaMalloc((void **)&G_D_CACHE, sizeof(TCacheType *));
-	cudaMalloc((void **)&G_D_CACHE_DPM, sizeof(typename TCacheType::DataProductionManagerKernelType *));
+
+	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE, sizeof(TDataStructureType *)));
+	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE_KERNEL, sizeof(typename TDataStructureType::VolTreeKernelType *)));
+	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE, sizeof(TCacheType *)));
+	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE_DPM, sizeof(typename TCacheType::DataProductionManagerKernelType)));
 
 	TDataStructureType * data_structure = pPipeline->editDataStructure();
 	typename TDataStructureType::VolTreeKernelType * data_structure_kernel = &(pPipeline->editDataStructure()->volumeTreeKernel);
 	TCacheType * cache = pPipeline->editCache();
 	typename TCacheType::DataProductionManagerKernelType cache_dpm = cache->getKernelObject();
 
-	cudaMemcpy(G_D_DATA_STRUCTURE, &data_structure, sizeof(TDataStructureType *), cudaMemcpyHostToDevice);
-	cudaMemcpy(G_D_DATA_STRUCTURE_KERNEL, &data_structure_kernel, sizeof(typename TDataStructureType::VolTreeKernelType *), cudaMemcpyHostToDevice);
-	cudaMemcpy(G_D_CACHE, &cache, sizeof(TCacheType *), cudaMemcpyHostToDevice);
-	cudaMemcpy(G_D_CACHE_DPM, &cache_dpm, sizeof(typename TCacheType::DataProductionManagerKernelType), cudaMemcpyHostToDevice);
+	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE, &data_structure, sizeof(TDataStructureType *), cudaMemcpyHostToDevice));
+	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE_KERNEL, &data_structure_kernel, sizeof(typename TDataStructureType::VolTreeKernelType *), cudaMemcpyHostToDevice));
+	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE, &cache, sizeof(TCacheType *), cudaMemcpyHostToDevice));
+	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE_DPM, &cache_dpm, sizeof(typename TCacheType::DataProductionManagerKernelType), cudaMemcpyHostToDevice));
 }
 
 
@@ -292,11 +297,18 @@ void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::initialize(Pip
 * @param rayStep ...
 * @param coneAperture ...
 ******************************************************************************/
-template <typename BrickSamplerType>
+template <typename TSamplerType, class TGPUCacheType>
 __device__
-void ShadowRayShaderKernel::runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture) {
+inline void ShadowRayShaderKernel::runImpl(
+	const TSamplerType& pBrickSampler,
+	TGPUCacheType& pGpuCache,
+	const float3 pSamplePosScene,
+	const float3 pRayDir,
+	float& pRayStep,
+	const float pConeAperture
+) {
 	_accColor.x = 1.f;
 	_accColor.y = 1.f;
 	_accColor.z = 1.f;
-	_accColor.w = 1.f;
+	_accColor.w += 0.25f;
 }

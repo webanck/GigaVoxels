@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -63,7 +63,7 @@
 namespace GvRendering
 {
 
-/** 
+/**
  * @class GvBrickVisitorKernel
  *
  * @brief The GvBrickVisitorKernel class provides ...
@@ -94,7 +94,7 @@ public:
 	 * Shading is done with cone-tracing (LOD is selected by comparing cone aperture versus voxel size).
 	 *
 	 * @param pVolumeTree data structure
-	 * @param pSampleShader shader 
+	 * @param pSampleShader shader
 	 * @param pGpuCache cache (not used for the moment...)
 	 * @param pRayStartTree camera position in Tree coordinate system
 	 * @param pRayDirTree ray direction in Tree coordinate system

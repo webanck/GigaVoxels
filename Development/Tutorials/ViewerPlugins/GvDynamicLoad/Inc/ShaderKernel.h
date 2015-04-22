@@ -111,10 +111,16 @@ public:
 	 * @param rayStep ...
 	 * @param coneAperture ...
 	 */
-	template< typename BrickSamplerType >
+	template <typename TSamplerType, class TGPUCacheType>
 	__device__
-	inline void runImpl( const BrickSamplerType& brickSampler, const float3 samplePosScene,
-		const float3 rayDir, float& rayStep, const float coneAperture );
+	inline void runImpl(
+		const TSamplerType& pBrickSampler,
+		TGPUCacheType& pGpuCache,
+		const float3 pSamplePosScene,
+		const float3 pRayDir,
+		float& pRayStep,
+		const float pConeAperture
+	);
 
 	/**
 	* Trace a ray from a sampled voxel to light to integrate light absorbtion.
@@ -166,9 +172,16 @@ public:
 	* @param rayStep ...
 	* @param coneAperture ...
 	*/
-	template <typename BrickSamplerType>
+	template <typename TSamplerType, class TGPUCacheType>
 	__device__
-	void runImpl(const BrickSamplerType& brickSampler, const float3 samplePosScene, const float3 rayDir, float& rayStep, const float coneAperture);
+	void runImpl(
+		const TSamplerType& pBrickSampler,
+		TGPUCacheType& pGpuCache,
+		const float3 pSamplePosScene,
+		const float3 pRayDir,
+		float& pRayStep,
+		const float pConeAperture
+	);
 };
 
 /**************************************************************************

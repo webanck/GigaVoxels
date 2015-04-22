@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -34,7 +34,7 @@
 
 namespace GvRendering
 {
-	
+
 /******************************************************************************
  * This method is called just before the cast of a ray. Use it to initialize any data
  *  you may need. You may also want to modify the initial distance along the ray (tTree).
@@ -126,12 +126,10 @@ inline bool GvIRenderShader< TDerived >::descentCriterion( const float pVoxelSiz
  * @param pConeAperture cone aperture
  ******************************************************************************/
 template< typename TDerived >
-template< typename TSamplerType >
+template< typename TSamplerType, class TGPUCacheType  >
 __device__
-inline void GvIRenderShader< TDerived >::run( const TSamplerType& pBrickSampler, const float3 pSamplePosScene,
-											  const float3 pRayDir, float& pRayStep, const float pConeAperture )
-{
-	static_cast< TDerived* >( this )->runImpl( pBrickSampler, pSamplePosScene, pRayDir, pRayStep, pConeAperture );
+inline void GvIRenderShader< TDerived >::run(const TSamplerType& pBrickSampler, TGPUCacheType& pGpuCache, const float3 pSamplePosScene, const float3 pRayDir, float& pRayStep, const float pConeAperture) {
+	static_cast< TDerived* >( this )->runImpl( pBrickSampler, pGpuCache, pSamplePosScene, pRayDir, pRayStep, pConeAperture );
 }
-	
+
 } // namespace GvRendering

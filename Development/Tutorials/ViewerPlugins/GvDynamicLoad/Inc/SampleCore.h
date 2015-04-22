@@ -104,7 +104,7 @@ typedef Producer< DataStructureType, DataProductionManagerType > ProducerType;
 // Defines the type of the shader
 typedef GvUtils::GvSimpleHostShader
 <
-	ShaderKernel<ProducerType, DataStructureType, DataProductionManagerType>
+ShaderKernel<ProducerType, DataStructureType, DataProductionManagerType>
 >
 ShaderType;
 //The shadows shader.
