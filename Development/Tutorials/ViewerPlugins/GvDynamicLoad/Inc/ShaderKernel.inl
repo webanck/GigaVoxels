@@ -39,8 +39,8 @@
 //Globals for pipeline access from CUDA shader.
 __device__ typename ShaderType::KernelType::DataStructureType ** G_D_DATA_STRUCTURE;
 __device__ typename ShaderType::KernelType::DataStructureType::VolTreeKernelType ** G_D_DATA_STRUCTURE_KERNEL;
-__device__ typename ShaderType::KernelType::CacheType ** G_D_CACHE;
-__device__ typename ShaderType::KernelType::CacheType::DataProductionManagerKernelType * G_D_CACHE_DPM;
+// __device__ typename ShaderType::KernelType::CacheType ** G_D_CACHE;
+// __device__ typename ShaderType::KernelType::CacheType::DataProductionManagerKernelType * G_D_CACHE_DPM;
 
 /******************************************************************************
  ****************************** INLINE DEFINITION *****************************
@@ -194,7 +194,7 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 		// or cone aperture is greater than voxel size.
 		float sampleDiameter = 0.f;
 		float3 sampleOffsetInNodeTree = make_float3(0.f);
-		TSamplerType new_brickSampler;
+		TSamplerType new_brickSampler = pBrickSampler;
 		bool modifInfoWriten = false;
 
 		// // bool TPriorityOnBrick = true; //TPriorityOnBrick = ? => bool(true)
@@ -209,14 +209,15 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 			true,
 			TDataStructureType::VolTreeKernelType,
 			//TDataStructureType,
-			typename TCacheType::DataProductionManagerKernelType
+			TGPUCacheType
 		>(
 			//pDataStructure,
 			//*pCache,
 			**G_D_DATA_STRUCTURE_KERNEL,
 			//(G_D_CACHE->getKernelObject()),
 			//new_cache,
-			*G_D_CACHE_DPM,
+			// *G_D_CACHE_DPM,
+			pGpuCache,
 			node,
 			samplePosTree,
 			const_coneAperture,
@@ -253,7 +254,8 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 				shader,
 				//*G_D_CACHE,
 				//new_cache,
-				*G_D_CACHE_DPM,
+				// *G_D_CACHE_DPM,
+				pGpuCache,
 				pRayStartTree,
 				pRayDirTree,
 				ptTree,
@@ -279,18 +281,18 @@ void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::initialize(Pip
 
 	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE, sizeof(TDataStructureType *)));
 	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE_KERNEL, sizeof(typename TDataStructureType::VolTreeKernelType *)));
-	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE, sizeof(TCacheType *)));
-	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE_DPM, sizeof(typename TCacheType::DataProductionManagerKernelType)));
+	// GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE, sizeof(TCacheType *)));
+	// GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE_DPM, sizeof(typename TCacheType::DataProductionManagerKernelType)));
 
 	TDataStructureType * data_structure = pPipeline->editDataStructure();
 	typename TDataStructureType::VolTreeKernelType * data_structure_kernel = &(pPipeline->editDataStructure()->volumeTreeKernel);
-	TCacheType * cache = pPipeline->editCache();
-	typename TCacheType::DataProductionManagerKernelType cache_dpm = cache->getKernelObject();
+	// TCacheType * cache = pPipeline->editCache();
+	// typename TCacheType::DataProductionManagerKernelType cache_dpm = cache->getKernelObject();
 
 	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE, &data_structure, sizeof(TDataStructureType *), cudaMemcpyHostToDevice));
 	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE_KERNEL, &data_structure_kernel, sizeof(typename TDataStructureType::VolTreeKernelType *), cudaMemcpyHostToDevice));
-	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE, &cache, sizeof(TCacheType *), cudaMemcpyHostToDevice));
-	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE_DPM, &cache_dpm, sizeof(typename TCacheType::DataProductionManagerKernelType), cudaMemcpyHostToDevice));
+	// GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE, &cache, sizeof(TCacheType *), cudaMemcpyHostToDevice));
+	// GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE_DPM, &cache_dpm, sizeof(typename TCacheType::DataProductionManagerKernelType), cudaMemcpyHostToDevice));
 }
 
 
