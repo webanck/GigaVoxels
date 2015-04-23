@@ -66,10 +66,9 @@ __constant__ float3 cLightPosition;
  *
  * ...
  */
-template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 class ShaderKernel:
 	public GvUtils::GvCommonShaderKernel,
-	public GvRendering::GvIRenderShader< ShaderKernel<TProducerType, TDataStructureType, TCacheType> >
+	public GvRendering::GvIRenderShader<ShaderKernel>
 {
 
 	/**************************************************************************
@@ -77,9 +76,6 @@ class ShaderKernel:
 	 **************************************************************************/
 
 public:
-	/******************************* TYPES ************************************/
-	typedef TDataStructureType DataStructureType;
-	typedef TCacheType CacheType;
 
 	/******************************* ATTRIBUTES *******************************/
 

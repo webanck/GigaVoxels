@@ -67,7 +67,6 @@ template< typename TDataStructureType, typename TDataProductionManager >
 class Producer;
 
 // Custom Shader
-template<typename TProducerType, typename TDataStructureType, typename TCacheType>
 class ShaderKernel;
 // Custom shadows Shader
 class ShadowRayShaderKernel;
@@ -104,7 +103,7 @@ typedef Producer< DataStructureType, DataProductionManagerType > ProducerType;
 // Defines the type of the shader
 typedef GvUtils::GvSimpleHostShader
 <
-ShaderKernel<ProducerType, DataStructureType, DataProductionManagerType>
+	ShaderKernel
 >
 ShaderType;
 //The shadows shader.

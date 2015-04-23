@@ -57,9 +57,8 @@
  *
  * @return ...
  ******************************************************************************/
-template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 __device__
-inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shadePointLight(
+inline float3 ShaderKernel::shadePointLight(
 	float3 materialColor,
 	float3 normalVec,
 	float3 lightVec,
@@ -98,10 +97,9 @@ inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shade
  * @param rayStep ...
  * @param coneAperture ...
  ******************************************************************************/
-template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 template <typename TSamplerType, typename TGPUCacheType>
 __device__
-inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl(
+inline void ShaderKernel::runImpl(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
 	const float3 pSamplePosScene,
@@ -161,10 +159,9 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 	}
 }
 
-template <typename TProducerType, typename TDataStructureType, class TCacheType>
 template <typename TSamplerType, class TGPUCacheType>
 __device__
-float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRay(
+float ShaderKernel::marchShadowRay(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
 	const float3 pSamplePosScene,
