@@ -96,11 +96,18 @@ public:
 	 * @param diffuseTerm ...
 	 * @param specularTerm ...
 	 *
-	 * @return ...
+	 * @return The RGB color values of the sample.
 	 */
 	__device__
-	inline float3 shadePointLight( float3 materialColor, float3 normalVec, float3 lightVec, float3 eyeVec,
-		float3 ambientTerm, float3 diffuseTerm, float3 specularTerm );
+	inline float3 shadePointLight(
+		float3 materialColor,
+		float3 normalVec,
+		float3 lightVec,
+		float3 eyeVec,
+		float3 ambientTerm,
+		float3 diffuseTerm,
+		float3 specularTerm
+	);
 
 	/**
 	 * ...
@@ -123,8 +130,13 @@ public:
 	);
 
 	/**
-	* Trace a ray from a sampled voxel to light to integrate light absorbtion.
+	* Traces a ray/cone from a voxel sample to light to integrate light absorbtion.
 	*
+	* @param pBrickSampler ...
+	* @param pGpuCache ...
+	* @param pSamplePosScene ...
+	* @param pRayStep ...
+	* @param pScreenConeAperture ...
 	* @return The remaining light intensity (1.0 for full light, 0.0 for full shadow).
 	*/
 	template <typename TSamplerType, class TGPUCacheType>
@@ -136,9 +148,6 @@ public:
 		float& pRayStep,
 		const float pScreenConeAperture
 	);
-
-	__host__
-	static void initialize(PipelineType * pPipeline);
 
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************
@@ -166,7 +175,6 @@ private:
 class ShadowRayShaderKernel:
 	public GvUtils::GvCommonShaderKernel,
 	public GvRendering::GvIRenderShader<ShadowRayShaderKernel>
-	// ,public GvUtils::GvSimpleHostShader<ShadowRayShaderKernel>
 {
 public:
 	/**

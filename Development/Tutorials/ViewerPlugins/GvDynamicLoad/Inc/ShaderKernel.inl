@@ -36,12 +36,6 @@
 #include <GvRendering/GvBrickVisitorKernel.h>
 #include <GvRendering/GvSamplerKernel.h>
 
-//Globals for pipeline access from CUDA shader.
-__device__ typename ShaderType::KernelType::DataStructureType ** G_D_DATA_STRUCTURE;
-__device__ typename ShaderType::KernelType::DataStructureType::VolTreeKernelType ** G_D_DATA_STRUCTURE_KERNEL;
-// __device__ typename ShaderType::KernelType::CacheType ** G_D_CACHE;
-// __device__ typename ShaderType::KernelType::CacheType::DataProductionManagerKernelType * G_D_CACHE_DPM;
-
 /******************************************************************************
  ****************************** INLINE DEFINITION *****************************
  ******************************************************************************/
@@ -65,8 +59,15 @@ __device__ typename ShaderType::KernelType::DataStructureType::VolTreeKernelType
  ******************************************************************************/
 template <typename TProducerType, typename TDataStructureType, typename TCacheType>
 __device__
-inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shadePointLight( float3 materialColor, float3 normalVec, float3 lightVec, float3 eyeVec, float3 ambientTerm, float3 diffuseTerm, float3 specularTerm ) {
-
+inline float3 ShaderKernel<TProducerType, TDataStructureType, TCacheType>::shadePointLight(
+	float3 materialColor,
+	float3 normalVec,
+	float3 lightVec,
+	float3 eyeVec,
+	float3 ambientTerm,
+	float3 diffuseTerm,
+	float3 specularTerm
+) {
 	float3 final_color = materialColor * ambientTerm;
 
 	//float lightDist=length(lightVec);
@@ -129,7 +130,7 @@ inline void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::runImpl
 			const float3 specular	= make_float3(0.9f);
 
 			//Shadows.
-			const float light_intensity = marchShadowRay<TSamplerType>(pBrickSampler, pGpuCache, pSamplePosScene, pRayStep, pConeAperture);
+			const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pSamplePosScene, pRayStep, pConeAperture);
 			//Common shading.
 			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
 			// -- [ Opacity correction ] --
@@ -194,29 +195,20 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 		// or cone aperture is greater than voxel size.
 		float sampleDiameter = 0.f;
 		float3 sampleOffsetInNodeTree = make_float3(0.f);
-		TSamplerType new_brickSampler = pBrickSampler;
+		//The new brick sampler will be filled by the node visitor.
+		TSamplerType new_brickSampler;
+		new_brickSampler._volumeTree = pBrickSampler._volumeTree;
 		bool modifInfoWriten = false;
 
 		// // bool TPriorityOnBrick = true; //TPriorityOnBrick = ? => bool(true)
-		//typename TDataStructureType::VolTreeKernelType pDataStructure = _dataStructure->volumeTreeKernel();//pDataStructure = ?
-		//TCacheType * pCache = _cache;//pCache = ?
 		const float3 samplePosTree = pSamplePosScene;//samplePosTree != samplePosScene ?
 		const float const_coneAperture = coneAperture;
 		const float3 pRayDirTree = lightDirection; //pRayDirTree = ?
 
-		// typename TCacheType::DataProductionManagerKernelType new_cache = G_D_CACHE->getKernelObject();
 		GvRendering::GvNodeVisitorKernel::visit<
-			true,
-			TDataStructureType::VolTreeKernelType,
-			//TDataStructureType,
-			TGPUCacheType
+			true
 		>(
-			//pDataStructure,
-			//*pCache,
-			**G_D_DATA_STRUCTURE_KERNEL,
-			//(G_D_CACHE->getKernelObject()),
-			//new_cache,
-			// *G_D_CACHE_DPM,
+			*(new_brickSampler._volumeTree),
 			pGpuCache,
 			node,
 			samplePosTree,
@@ -224,7 +216,6 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 			sampleDiameter,
 			sampleOffsetInNodeTree,
 			new_brickSampler,
-			//brickSampler,
 			modifInfoWriten
 		);
 
@@ -237,24 +228,12 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 			// Where the "shading is done": just accumulating alpha from brick samples.
 			const float3 pRayStartTree = pSamplePosScene; //pRayStartTree = ?
 			const float ptTree = marched_length; //ptTree = ?
-			//TODO: pourquoi que 2 arguments aux templates?? template<bool TFastUpdateMode, bool TPriorityOnBrick, class TVolumeTreeKernelType , class TSampleShaderType , class TGPUCacheType >
-			//->type inféré automatiquement?
 			const float rayLengthInBrick = GvRendering::GvBrickVisitorKernel::visit<
 				true,
 				true
-				// ,
-				// TDataStructureType::VolTreeKernelType,
-				// ShadowsShaderType,
-				// typename TCacheType::DataProductionManagerKernelType
 			>(
-				/**pDataStructure,
-				*_shadowsShader,
-				*pCache,*/
-				**G_D_DATA_STRUCTURE_KERNEL,
+				*(new_brickSampler._volumeTree),
 				shader,
-				//*G_D_CACHE,
-				//new_cache,
-				// *G_D_CACHE_DPM,
 				pGpuCache,
 				pRayStartTree,
 				pRayDirTree,
@@ -266,33 +245,12 @@ float ShaderKernel<TProducerType, TDataStructureType, TCacheType>::marchShadowRa
 			marched_length += rayLengthInBrick;
 			// marched_length += coneAperture;
 		}
-		// marched_length += rayLengthInNodeTree;
 
 		//Update the cone aperture (thales theorem) depending on the position between the sample and the light and the diameters of the light and the sample.
 		coneAperture = marched_length * (lightDiameter - sampleDiameter) / lightDistance + sampleDiameter;
 	}
 
 	return (shader.getColor().w < 1.f ? 1.f - shader.getColor().w : 0.f);
-}
-
-template <typename TProducerType, typename TDataStructureType, typename TCacheType>
-__host__
-void ShaderKernel<TProducerType, TDataStructureType, TCacheType>::initialize(PipelineType * pPipeline) {
-
-	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE, sizeof(TDataStructureType *)));
-	GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_DATA_STRUCTURE_KERNEL, sizeof(typename TDataStructureType::VolTreeKernelType *)));
-	// GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE, sizeof(TCacheType *)));
-	// GV_CUDA_SAFE_CALL(cudaMalloc((void **)&G_D_CACHE_DPM, sizeof(typename TCacheType::DataProductionManagerKernelType)));
-
-	TDataStructureType * data_structure = pPipeline->editDataStructure();
-	typename TDataStructureType::VolTreeKernelType * data_structure_kernel = &(pPipeline->editDataStructure()->volumeTreeKernel);
-	// TCacheType * cache = pPipeline->editCache();
-	// typename TCacheType::DataProductionManagerKernelType cache_dpm = cache->getKernelObject();
-
-	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE, &data_structure, sizeof(TDataStructureType *), cudaMemcpyHostToDevice));
-	GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_DATA_STRUCTURE_KERNEL, &data_structure_kernel, sizeof(typename TDataStructureType::VolTreeKernelType *), cudaMemcpyHostToDevice));
-	// GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE, &cache, sizeof(TCacheType *), cudaMemcpyHostToDevice));
-	// GV_CUDA_SAFE_CALL(cudaMemcpy(G_D_CACHE_DPM, &cache_dpm, sizeof(typename TCacheType::DataProductionManagerKernelType), cudaMemcpyHostToDevice));
 }
 
 

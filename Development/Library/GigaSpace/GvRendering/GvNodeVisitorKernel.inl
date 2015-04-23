@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -60,11 +60,17 @@ namespace GvRendering
  ******************************************************************************/
 template< bool priorityOnBrick, class TVolTreeKernelType, class GPUCacheType >
 __device__
-__forceinline__ void GvNodeVisitorKernel
-::visit( TVolTreeKernelType& pVolumeTree, GPUCacheType& pGpuCache, GvStructure::GvNode& pNode,
-		 const float3 pSamplePosTree, const float pConeAperture, float& pNodeSizeTree, float3& pSampleOffsetInNodeTree,
-		 GvSamplerKernel< TVolTreeKernelType >& pBrickSampler, bool& pRequestEmitted )
-{
+__forceinline__ void GvNodeVisitorKernel::visit(
+	TVolTreeKernelType& pVolumeTree,
+	GPUCacheType& pGpuCache,
+	GvStructure::GvNode& pNode,
+	const float3 pSamplePosTree,
+	const float pConeAperture,
+	float& pNodeSizeTree,
+	float3& pSampleOffsetInNodeTree,
+	GvSamplerKernel< TVolTreeKernelType >& pBrickSampler,
+	bool& pRequestEmitted
+) {
 	// Useful variables initialization
 	uint nodeDepth = 0;
 	float3 nodePosTree = make_float3( 0.0f );
@@ -141,7 +147,7 @@ __forceinline__ void GvNodeVisitorKernel
 		// Process requests based on traversal strategy (priority on bricks or nodes)
 		if ( priorityOnBrick )
 		{
-			// Low resolution first						  
+			// Low resolution first
 			if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
 			{
 				pGpuCache.loadRequest( nodeAddress );
@@ -216,7 +222,7 @@ __forceinline__ void GvNodeVisitorKernel
 /******************************************************************************
  * Descent in volume tree until max depth is reach or current traversed node has no subnodes.
  * Perform a descent in a volume tree from a starting node tile address, until a max depth
- * Given a 3D sample position, 
+ * Given a 3D sample position,
  *
  * @param pVolumeTree The volume tree on which descent in done
  * @param pMaxDepth Max depth of the descent

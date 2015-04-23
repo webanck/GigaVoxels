@@ -272,9 +272,6 @@ void SampleCore::init()
 	//float x,y,z;
 	//getLightPosition( x,y,z );
 	// setLightPosition(starting_light_position.x, starting_light_position.y, starting_light_position.z);
-
-	// Shader initialization for shadows
-	ShaderType::KernelType::initialize(_pipeline);
 }
 
 /******************************************************************************

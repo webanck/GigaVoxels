@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -50,7 +50,7 @@ namespace GvRendering
  * @param pVolumeTree data structure
  * @param pCache cache
  ******************************************************************************/
-template<	class TBlockResolution, bool TFastUpdateMode, bool TPriorityOnBrick, 
+template<	class TBlockResolution, bool TFastUpdateMode, bool TPriorityOnBrick,
 			class TSampleShaderType, class TVolTreeKernelType, class TCacheType >
 __global__
 // TO DO : Prolifing / Optimization
@@ -68,7 +68,7 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 	__shared__ float3 smRayStart;
 	// TO DO : Prolifing / Optimization
 	// - try to remove smRayStart from __shared__ memory, because genertaed assembler code on GPU shows that it uses more registers
-	
+
 	// Compute thread ID
 	const uint pixelID = threadIdx.x + threadIdx.y * TBlockResolution::x;
 
@@ -120,25 +120,25 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 		float3 rayDir = k_renderViewContext.viewPlaneDirTP
 							+ k_renderViewContext.viewPlaneXAxisTP * static_cast< float >( pixelCoords.x )
 							+ k_renderViewContext.viewPlaneYAxisTP * static_cast< float >( pixelCoords.y );
-		
+
 		// Ray start
 		smRayStart = k_renderViewContext.viewCenterTP;
-		
+
 		// Not sure to normalize
 		// - traditionaly, in ray-tracing, for the object space, we don't have to normalize the ray
 		rayDir = normalize( rayDir );
-					
+
 		// Intersect the inverse transformed ray with the untransformed object
 		// - a BBox in [ 0.0; 1.0 ] x [ 0.0; 1.0 ] x [ 0.0; 1.0 ]
 		float boxInterMin = 0.0f;
 		float boxInterMax = 10000.0f;
 		int hit = intersectBox( smRayStart, rayDir, make_float3( 0.001f ), make_float3( 0.999f ), boxInterMin, boxInterMax );
 		bool masked = ! ( hit && ( boxInterMax > 0.0f ) );
-		
+
 		// Set closest hit point
 		boxInterMin = maxcc( boxInterMin, k_renderViewContext.frustumNear );	// TO DO : attention, c'est faux => frustumNear est en "espace camera" !!
 		float t = boxInterMin + sampleShader.getConeAperture( boxInterMin );
-		
+
 		// Set farthest hit point
 		float tMax = boxInterMax;
 		if ( frameDepth < 1.0f )
@@ -156,7 +156,7 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 
 			// Compute z in Eye space
 			const float zEye = k_renderViewContext.frustumD / ( -zNDC - k_renderViewContext.frustumC );
-			
+
 			// Take minimum value between input depth and bbox output
 			tMax = mincc( -zEye, boxInterMax );
 		}
@@ -183,7 +183,7 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 
 			// Convert color from uchar [ 0 ; 255 ] to float [ 0.0 ; 1.0 ]
 			float4 scenePixelColorF = make_float4( (float)frameColor.x / 255.0f, (float)frameColor.y / 255.0f, (float)frameColor.z / 255.0f, (float)frameColor.w / 255.0f );
-		
+
 			// TO DO
 			// - let OpenGL do that operation with blending ?
 
@@ -194,13 +194,13 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 			pixelColorF.x = __saturatef( pixelColorF.x );
 			pixelColorF.y = __saturatef( pixelColorF.y );
 			pixelColorF.z = __saturatef( pixelColorF.z );
-			//pixelColorF.w = 1.0f;		// <== why 1.0f and not __saturatef( pixelColorF.w ) ?	// Pour éviter une opération OpenGL de ROP ? Car ça a été penser pour rendre en dernier au départ ?
+			//pixelColorF.w = 1.0f;		// <== why 1.0f and not __saturatef( pixelColorF.w ) ?	// Pour ï¿½viter une opï¿½ration OpenGL de ROP ? Car ï¿½a a ï¿½tï¿½ penser pour rendre en dernier au dï¿½part ?
 			pixelColorF.w = __saturatef( pixelColorF.w );
 			//pixelColorF.w = __saturatef( pixelColorF.w );
-			
+
 			// Convert color from float [ 0.0 ; 1.0 ] to uchar [ 0 ; 255 ]
 			frameColor = make_uchar4( (uchar)( pixelColorF.x * 255.0f ), (uchar)( pixelColorF.y * 255.0f ), (uchar)( pixelColorF.z * 255.0f ), (uchar)( pixelColorF.w * 255.0f ) );
-			
+
 			// Project the depth and check against the current one
 			float pixDepth = 1.0f;
 			if ( accCol.w > cOpacityStep )
@@ -208,10 +208,10 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 				const float VP = -fabsf( t * rayDir.z );
 				//http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=234519&page=2
 				const float clipZ = ( VP * k_renderViewContext.frustumC + k_renderViewContext.frustumD ) / -VP;
-				
+
 				//pixDepth = clamp( ( clipZ + 1.0f ) / 2.0f, 0.0f, 1.0f ); // TO DO : use __saturatef instead !!	=====> ( [ x 0.5f ] instead ) ??
 				pixDepth = __saturatef( ( clipZ + 1.0f ) / 2.0f );
-				
+
 				//const float zNDC = - ( k_renderViewContext.frustumC + k_renderViewContext.frustumD / ( -t ) );
 				//const float zWindow = ( zNDC + 1.0f ) * 0.5f;
 				//pixDepth = zWindow;
@@ -220,7 +220,7 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 
 			// Write color in color buffer
 			setOutputColor( pixelCoords, frameColor );
-			
+
 			// Write depth in depth buffer
 			setOutputDepth( pixelCoords, frameDepth );
 		}
@@ -347,8 +347,9 @@ __forceinline__ void GvRendererKernel
 
 	// Keep root node in cache
 	pCache._nodeCacheManager.setElementUsage( 0 );
-	
-	// Initialize the brick sampler, a helper class used to sample data in the data structure
+
+	// Initialize the brick sampler, a helper class used to sample data in the data structure,
+	// it will be updated during nodes and bricks visit.
 	GvSamplerKernel< VolTreeKernelType > brickSampler;
 	brickSampler._volumeTree = &pDataStructure;
 
@@ -370,7 +371,7 @@ __forceinline__ void GvRendererKernel
 
 		//float3 samplePosTree = pRayStartTree + ptTree * pRayDirTree;
 		const float coneAperture = pShader.getConeAperture( ptTree );
-		
+
 		// Declare an empty node of the data structure.
 		// It will be filled during the traversal according to cuurent sample position "samplePosTree"
 		GvStructure::GvNode node;
@@ -405,9 +406,9 @@ __forceinline__ void GvRendererKernel
 			// PASCAL
 			// This is used to stop the ray with a z-depth value smaller than the remaining brick ray length
 			//
-			// QUESTION : pas forcément, si objet qui cache est transparent !??
+			// QUESTION : pas forcï¿½ment, si objet qui cache est transparent !??
 			// => non, comme d'hab en OpenGL => dessiner d'abord les objets opaques
-			const float rayLengthInBrick = mincc( rayLengthInNodeTree, ptMaxTree - ptTree );	// ==> attention, ( ptMaxTree - ptTree < 0 ) ?? ==> non, à casue du test du WHILE !! c'est OK !!
+			const float rayLengthInBrick = mincc( rayLengthInNodeTree, ptMaxTree - ptTree );	// ==> attention, ( ptMaxTree - ptTree < 0 ) ?? ==> non, ï¿½ casue du test du WHILE !! c'est OK !!
 																								// MAIS possible en cas d'erreur sur "float" !!!!!
 
 			// This is where shader program occurs
