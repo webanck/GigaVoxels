@@ -175,10 +175,13 @@ float ShaderKernel::marchShadowRay(
 	const float  lightDiameter	= 0.f; //a parameter to be: light tweaking if not point light
 	// const float sampleDiameter = ???? => retrieved during structure traversal
 
-	float coneAperture = pScreenConeAperture; //The cone aperture is initialized with the cone aperture which yielded the current sample.
+	//const float brickDivisions = TSamplerType::VolumeTreeKernelType::getFloat3().x;
+	//const float brickDivisions = BrickRes::getFloat3().x;
+	//float coneAperture = pBrickSampler._nodeSizeTree/brickDivisions;
+	float coneAperture = pScreenConeAperture;
 	float marched_length = 0.f;
 	// float light_intensity = 1.f; //We are considering a light intensity which can only decrease.
-	//TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (outside empty).
+	//TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (the remaining distance is empty).
 	ShadowRayShaderKernel shader; // The shader used for shadow ray marching.
 
 	while(marched_length < lightDistance && shader.getColor().w < 1.f) {
@@ -273,5 +276,5 @@ inline void ShadowRayShaderKernel::runImpl(
 	_accColor.x = 1.f;
 	_accColor.y = 1.f;
 	_accColor.z = 1.f;
-	_accColor.w += 0.25f;
+	_accColor.w += 0.5f;
 }
