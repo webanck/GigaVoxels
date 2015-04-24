@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -59,11 +59,11 @@ GvDataLoader< TDataTypeList >
 	uint resolution = 0;
 	int parse = this->parseXMLFile( pName.c_str(), resolution );
 	assert( parse == 0 );
-		
+
 	this->_bricksRes.x = pBlocksize.x;
 	this->_bricksRes.y = pBlocksize.y;
 	this->_bricksRes.z = pBlocksize.z;
-		
+
 	// Fill member variables
 	this->_numChannels = Loki::TL::Length< TDataTypeList >::value;
 	this->_volumeRes = make_uint3( resolution );//TO CHANGE
@@ -93,22 +93,22 @@ GvDataLoader< TDataTypeList >
 	if ( this->_useCache )
 	{
 		// Iterate through mipmap levels
-		
+
 		for ( int level = 0; level < _numMipMapLevels; level++ )
 		{
-			
+
 			// Retrieve node filename at current mipmap level
 			//
 			// Files are stored by mipmap level in the list :
 			// - first : node file
 			// - then : brick file for each channel
 			std::string fileNameIndex = _filesNames[ ( _numChannels + 1 ) * level ];
-			
+
 			// Open node file
 			FILE* fileIndex = fopen( fileNameIndex.c_str(), "rb" );
 			if ( fileIndex )
 			{
-				
+
 				// Retrieve node file size
 #ifdef WIN32
 				_fseeki64( fileIndex, 0, SEEK_END );
@@ -123,7 +123,7 @@ GvDataLoader< TDataTypeList >
 #endif
 				// Handle error
 				if ( size != expectedSize )
-				{					
+				{
 					std::cerr << "GvDataLoader::GvDataLoader: file size expected = " << expectedSize
 								<< ", size returned = " << size << " for " << fileNameIndex << std::endl;
 				}
@@ -144,7 +144,7 @@ GvDataLoader< TDataTypeList >
 					std::cout << "GvDataLoader::GvDataLoader: Unable to open file " << this->_filesNames[ level ] << std::endl;
 					this->_useCache = false;
 				}
-				
+
 				// Close node file
 				fclose( fileIndex );
 
@@ -165,7 +165,7 @@ GvDataLoader< TDataTypeList >
 				// Files are stored by mipmap level in the list :
 				// - first : node file
 				// - then : brick file for each channel
-				
+
 				// Open brick file
 				unsigned int fileIndex = ( _numChannels + 1 ) * level + channel + 1;
 				if ( fileIndex >= this->_filesNames.size() )
@@ -190,7 +190,7 @@ GvDataLoader< TDataTypeList >
 					unsigned char* tmpCache;
 #if USE_GPUFETCHDATA
 					cudaHostAlloc( (void**)&tmpCache, size, cudaHostAllocMapped | cudaHostAllocWriteCombined );
-					
+
 					void* deviceptr;
 					cudaHostGetDevicePointer( &deviceptr, tmpCache, 0 );
 					std::cout << "Device pointer host mem: " << static_cast< uint >( deviceptr ) << "\n";
@@ -207,7 +207,7 @@ GvDataLoader< TDataTypeList >
 #else
 					fseeko( brickFile, 0, SEEK_SET );
 #endif
-					
+
 					// Read brick file and store data in the tmpCache buffer
 					if ( fread( tmpCache, 1, static_cast< size_t >( size ), brickFile ) != size )
 					{
@@ -215,7 +215,7 @@ GvDataLoader< TDataTypeList >
 						std::cout << "GvDataLoader::GvDataLoader: Can't read file" << std::endl;
 						this->_useCache = false;
 					}
-					
+
 					// Close brick file
 					fclose( brickFile );
 
@@ -229,7 +229,7 @@ GvDataLoader< TDataTypeList >
 					this->_useCache = false;
 
 				}
-				
+
 			}
 		}
 	}
@@ -319,7 +319,7 @@ int GvDataLoader< TDataTypeList >
 
 	std::vector<std::string> nodes;
 	std::vector<std::string> bricks;
-	
+
 	TiXmlDocument doc(pFilename);
 	bool loadOkay = doc.LoadFile();
 	if (loadOkay)
@@ -333,15 +333,15 @@ int GvDataLoader< TDataTypeList >
 			while (attrib)
 			{
 				if (strcmp(attrib->Name(),rootName)==0)
-				{	
-					printf("Loading model %s\n",attrib->Value());	
-				} 
+				{
+					printf("Loading model %s\n",attrib->Value());
+				}
 				else if (strcmp(attrib->Name(),rootDir)==0)
-				{	
+				{
 					//printf("In directory %s\n",attrib->Value());
 					directory = directory + std::string(attrib->Value()) + "/";
 					directorySet = true;
-				} 
+				}
 				else if (strcmp(attrib->Name(),nodeTreeNbLevels)==0)
 				{
 					//printf("Nb levels %s\n",attrib->Value());
@@ -349,20 +349,20 @@ int GvDataLoader< TDataTypeList >
 					resolution *= powf(2,nbLevels-1);
 					//printf("%d\n",(int)(resolution));
 					nbLevelsSet = true;
-				} else 
+				} else
 				{
 					printf("XML WARNING Unknown attribute: %s\n",attrib->Value());
 				}
 				attrib = attrib->Next();
 			}
-			if (directorySet && nbLevelsSet) 
+			if (directorySet && nbLevelsSet)
 			{
-				
+
 				model = model->FirstChild();
 				TiXmlNode* level ;
 				TiXmlNode* channel ;
 
-				
+
 				while (model)
 				{
 					if (strcmp(model->Value() , nodeTree)==0)
@@ -377,13 +377,13 @@ int GvDataLoader< TDataTypeList >
 								while (attrib)
 								{
 									if (strcmp(attrib->Name(),nodeId)==0)
-									{	
-										//printf("Id : %s\n",attrib->Value());	
+									{
+										//printf("Id : %s\n",attrib->Value());
 									} else if ( strcmp(attrib->Name(),nodeFilename)==0)
 									{
 										//printf("Filename : %s\n",(directory+std::string(attrib->Value())).c_str());
 										nodes.push_back( directory+std::string(attrib->Value()) );
-									} else 
+									} else
 									{
 										printf("XML WARNING Unknown attribute: %s\n",attrib->Value());
 									}
@@ -396,7 +396,7 @@ int GvDataLoader< TDataTypeList >
 
 							level = level->NextSibling();
 						}
-				
+
 					}
 					else if ( strcmp(model->Value() , brickData)==0)
 					{
@@ -404,13 +404,13 @@ int GvDataLoader< TDataTypeList >
 						while (attrib)
 						{
 							if (strcmp(attrib->Name(),brickDataResolution)==0)
-							{	
-								//printf("Resolution : %s\n",attrib->Value());	
+							{
+								//printf("Resolution : %s\n",attrib->Value());
 								resolution *= atoi(attrib->Value());
 							} else if ( strcmp(attrib->Name(),brickDataBorderSize)==0)
 							{
 								//printf("Border size : %s\n",attrib->Value());
-							} else 
+							} else
 							{
 								//printf("XML WARNING Unknown attribute: %s\n",attrib->Value());
 							}
@@ -430,15 +430,15 @@ int GvDataLoader< TDataTypeList >
 								while (attrib)
 								{
 									if (strcmp(attrib->Name(),channelId)==0)
-									{	
-										//printf("Id : %s\n",attrib->Value());	
+									{
+										//printf("Id : %s\n",attrib->Value());
 									} else if ( strcmp(attrib->Name(),channelName)==0)
 									{
 										//printf("Name : %s\n",attrib->Value());
 									} else if ( strcmp(attrib->Name(),channelType)==0)
 									{
 										//printf("Type : %s\n",attrib->Value());
-									} else 
+									} else
 									{
 										printf("XML WARNING Unknown attribute: %s\n",attrib->Value());
 									}
@@ -455,13 +455,13 @@ int GvDataLoader< TDataTypeList >
 										while (attrib)
 										{
 											if (strcmp(attrib->Name(),levelId)==0)
-											{	
-												//printf("Id : %s\n",attrib->Value());	
+											{
+												//printf("Id : %s\n",attrib->Value());
 											} else if ( strcmp(attrib->Name(),levelFilename)==0)
 											{
 												//printf("Filename : %s\n",(directory+std::string(attrib->Value())).c_str());
 												bricks.push_back(directory+std::string( attrib->Value()) );
-											} else 
+											} else
 											{
 												printf("XML WARNING Unknown attribute: %s\n",attrib->Value());
 											}
@@ -475,21 +475,21 @@ int GvDataLoader< TDataTypeList >
 									level = level->NextSibling();
 								}
 							}
-							else 
+							else
 							{
 								printf("XML WARNING Unexpected token : %s expected Channel\n",channel->Value());
 							}
 							channel = channel->NextSibling();
 						}
 					}
-					else 
+					else
 					{
 						printf("XML WARNING Unknown token : %s\n",model->Value());
 					}
 					model = model->NextSibling();
-				}				
+				}
 			} else {
-				printf("XML ERROR Wrong Syntax : Missing model informations (directory or nbLevels)\n",root,model->Value() );
+				printf("XML ERROR Wrong Syntax : Missing model informations (directory or nbLevels)\n");
 				return -1;
 			}
 		}
@@ -515,7 +515,7 @@ int GvDataLoader< TDataTypeList >
 			//printf( "%s\n", bricks[ k + p * nbLevels ].c_str() );
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -536,7 +536,7 @@ unsigned int GvDataLoader< TDataTypeList >
 
 	// Number of nodes at given level
 	uint3 blocksInLevel = levelSize / this->_bricksRes;
-	
+
 	unsigned int indexValue = 0;
 
 	// Check wheter or not, cache mechanism is used
@@ -634,9 +634,9 @@ bool GvDataLoader< TDataTypeList >
 
 		return true;
 	}
-	
+
 	return false;
-} 
+}
 
 /******************************************************************************
  * Helper function used to determine the type of regions in the data structure.
