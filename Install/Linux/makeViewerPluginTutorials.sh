@@ -13,7 +13,7 @@ mkdir ../../Generated_Linux/Tutorials/ViewerPlugins
 
 # Generates standard UNIX makefiles
 cd ../../Generated_Linux/Tutorials/ViewerPlugins
-cmake -G "Unix Makefiles" ../../../Development/Tutorials/ViewerPlugins
+cmake -G "Unix Makefiles" ../../../Development/Tutorials/ViewerPlugins "$CMAKE_DEBUG_OPTIONS"
 
 # Exit
 cd $CURRENT_PATH

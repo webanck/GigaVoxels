@@ -60,7 +60,7 @@ FOREACH (it ${qtLibList})
 		LINK_LIBRARIES (optimized ${it}4 debug ${it}d4)
 		#LINK_LIBRARIES (optimized ${it} debug ${it}d)
 	ELSE ()
-		LINK_LIBRARIES (optimized ${it} debug ${it}d)
+		LINK_LIBRARIES (optimized ${it} debug ${it})
 	ENDIF ()
 ENDFOREACH (it)
 

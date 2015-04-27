@@ -13,7 +13,7 @@ mkdir ../../Generated_Linux/Tutorials/Demos
 
 # Generates standard UNIX makefiles
 cd ../../Generated_Linux/Tutorials/Demos
-cmake -G "Unix Makefiles" ../../../Development/Tutorials/Demos
+cmake -G "Unix Makefiles" ../../../Development/Tutorials/Demos "$CMAKE_DEBUG_OPTIONS"
 
 # Exit
 cd $CURRENT_PATH

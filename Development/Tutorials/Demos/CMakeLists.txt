@@ -163,9 +163,9 @@ list(APPEND CUDA_NVCC_FLAGS -lineinfo)
 
 # NSight Debugging
 # - debug on CPU
-#list(APPEND CUDA_NVCC_FLAGS -g)
+list(APPEND CUDA_NVCC_FLAGS -g)
 # - debug on GPU
-#list(APPEND CUDA_NVCC_FLAGS -G)
+list(APPEND CUDA_NVCC_FLAGS -G)
 
 # Set this flag to see detailed NVCC command lines
 #set (CUDA_VERBOSE_BUILD "ON")

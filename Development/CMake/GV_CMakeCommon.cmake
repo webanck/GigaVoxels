@@ -192,7 +192,7 @@ ELSE (WIN32)
 		#MESSAGE(STATUS "Processing ${Src}")
 		#MESSAGE( STATUS "for myFile in ${Src} \; do if [ -e $myFile ] \;  then cp -u $myFile ${Dst} \; fi; done")
 		ADD_CUSTOM_COMMAND(TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND for myFile in ${Src} \; do if [ -e $$myFile ] \;  then cp -u $$myFile ${Dst} \; fi; done)
+		COMMAND for myFile in ${Src} \; do if [ -e $$myFile ] \;  then cp -f -s $$myFile ${Dst} \; fi; done)
 #ENDFOREACH( myFile)
 
 ENDIF (WIN32)

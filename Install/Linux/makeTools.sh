@@ -12,7 +12,7 @@ mkdir ../../Generated_Linux/Tools
 
 # Generates standard UNIX makefiles
 cd ../../Generated_Linux/Tools
-cmake -G "Unix Makefiles" ../../Development/Tools
+cmake -G "Unix Makefiles" ../../Development/Tools "$CMAKE_DEBUG_OPTIONS"
 
 # Exit
 cd $CURRENT_PATH

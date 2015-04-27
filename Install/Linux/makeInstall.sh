@@ -9,6 +9,9 @@ CURRENT_PATH=$PWD
 #Selection of the QT version for systems with multiple versions.
 export QT_SELECT=4
 
+#Define compilation DEBUG mode.
+export CMAKE_DEBUG_OPTIONS='-DCMAKE_BUILD_TYPE=Debug'
+
 #Copy of the required stuff for the binaries directory.
 sh ./updateData.sh && \
 sh ./updateShaders.sh && \
