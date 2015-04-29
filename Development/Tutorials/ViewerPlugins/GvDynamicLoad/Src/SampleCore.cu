@@ -229,8 +229,12 @@ void SampleCore::init()
 	// TO DO :
 	// Test empty and existence of filename
 
-	GvUtils::GvDataLoader< DataType >* dataLoader = new GvUtils::GvDataLoader< DataType >(
-														filename.toStdString(), PipelineType::BrickTileResolution::get(), PipelineType::BrickTileBorderSize, true );
+	GvUtils::GvDataLoader<DataType> *dataLoader = new GvUtils::GvDataLoader<DataType>(
+		filename.toStdString(),
+		PipelineType::BrickTileResolution::get(),
+		PipelineType::BrickTileBorderSize,
+		true
+	);
 
 	// Producer initialization
 	_producer = new ProducerType( 64 * 1024 * 1024, nodePoolRes.x * nodePoolRes.y * nodePoolRes.z );
@@ -263,6 +267,8 @@ void SampleCore::init()
 	// TEST
 	_pipeline->editCache()->setMaxNbNodeSubdivisions( 100 );
 	_pipeline->editCache()->setMaxNbBrickLoads( 100 );
+	// _pipeline->editCache()->useProductionTimeLimit( false );
+	// _pipeline->editCache()->setProductionTimeLimit( 10000 );
 	//-----------------------------------------------
 
 	// Custom initialization
@@ -706,56 +712,53 @@ bool SampleCore::hasLight() const
 }
 
 /******************************************************************************
- * Get the light position
+ * Get the light position in the scene referential.
  *
- * @param pX the X light position
- * @param pY the Y light position
- * @param pZ the Z light position
+ * @param pX the X light position.
+ * @param pY the Y light position.
+ * @param pZ the Z light position.
  ******************************************************************************/
-void SampleCore::getLightPosition( float& pX, float& pY, float& pZ ) const
-{
-	// WARNING
-	// The given coordinates are in the voxels referential.
-	// Apply modelisation matrix applied on the GigaVoxels object to set light position correctly (world ref).
-	pX = _lightPosition.x + _translation[ 0 ];
-	pY = _lightPosition.y + _translation[ 1 ];
-	pZ = _lightPosition.z + _translation[ 2 ];
+void SampleCore::getLightPosition(float& pX, float& pY, float& pZ) const {
+	pX = _lightPosition.x;
+	pY = _lightPosition.y;
+	pZ = _lightPosition.z;
 }
 
 /******************************************************************************
- * Set the light position
+ * Set the pipeline and OpenGL light position.
  *
- * @param pX the X light position
- * @param pY the Y light position
- * @param pZ the Z light position
+ * @param pX the X light position in the scene referential.
+ * @param pY the Y light position in the scene referential.
+ * @param pZ the Z light position in the scene referential.
  ******************************************************************************/
-void SampleCore::setLightPosition( float pX, float pY, float pZ )
-{
-	// Update DEVICE memory with "light position"
-	//
-	// WARNING
-	// The retrieved coordinates are in the world referential.
-	// Apply inverse modelisation matrix applied on the GigaVoxels object to set light position correctly (voxels ref).
-	_lightPosition.x = pX - _translation[ 0 ];
-	_lightPosition.y = pY - _translation[ 1 ];
-	_lightPosition.z = pZ - _translation[ 2 ];
+void SampleCore::setLightPosition(float pX, float pY, float pZ) {
+	//Update the pipeline light position in the scene referential.
+	_lightPosition.x = pX;
+	_lightPosition.y = pY;
+	_lightPosition.z = pZ;
 
-	// Update device memory
-	GV_CUDA_SAFE_CALL( cudaMemcpyToSymbol( cLightPosition, &_lightPosition, sizeof( _lightPosition ), 0, cudaMemcpyHostToDevice ) );
+	//Update DEVICE memory with "light position" in the volume tree referential.
+	float3 lightPositionTree = make_float3(
+		(pX - _translation[0])/_scale,
+		(pY - _translation[1])/_scale,
+		(pZ - _translation[2])/_scale
+	);
+	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cLightPositionTree, &lightPositionTree, sizeof(lightPositionTree), 0, cudaMemcpyHostToDevice));
+	// Update DEVICE memory with "light position" in the scene referential.
+	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cLightPositionScene, &_lightPosition, sizeof(_lightPosition), 0, cudaMemcpyHostToDevice));
 
-	// float old_position[4];
-	// glGetLightfv(GL_LIGHT0, GL_POSITION, old_position);
-	// Update the position of the OpenGL light.
-	float position[4] = {_lightPosition.x, _lightPosition.y, _lightPosition.z, 0.f};
+	// Update the OpenGL light position in the scene referential.
+	float position[4] = {pX, pY, pZ, 0.f};
 	glLightfv(GL_LIGHT0, GL_POSITION, position);
-	// cout << "position_change:" << pX << "," << pY << "," << pZ << endl;
+	// cout << "position_change (scene):" << pX << "," << pY << "," << pZ << endl;
+	// cout << "position_change (tree):" << lightPositionTree.x << "," << lightPositionTree.y << "," << lightPositionTree.z << endl;
 	// cout << "old_position:" << old_position[0] << "," << old_position[1] << "," << old_position[2] << "," << old_position[3] << endl;
 }
 
 /******************************************************************************
- * Tell wheter or not the pipeline has a light.
+ * Tell wheter or not the pipeline has a .
  *
- * @return the flag telling wheter or not the pipeline has a light
+ * @return the flag telling wheter or not the pipeline has a
  ******************************************************************************/
 bool SampleCore::has3DModel() const
 {
@@ -857,9 +860,9 @@ void SampleCore::getRotation( float& pAngle, float& pX, float& pY, float& pZ ) c
 void SampleCore::setRotation( float pAngle, float pX, float pY, float pZ )
 {
 	_rotation[ 0 ] = pAngle;
-	_rotation[ 1 ] = pX;;
-	_rotation[ 2 ] = pY;;
-	_rotation[ 3 ] = pZ;;
+	_rotation[ 1 ] = pX;
+	_rotation[ 2 ] = pY;
+	_rotation[ 3 ] = pZ;
 }
 
 /******************************************************************************
@@ -879,5 +882,6 @@ void SampleCore::getScale( float& pValue ) const
  ******************************************************************************/
 void SampleCore::setScale( float pValue )
 {
+	//TODO: et qu'en est-il de la fonction setVoxelSizeMultiplier du renderer? à quel moment scaler? copier l'info pour le GPU?
 	_scale = pValue;
 }

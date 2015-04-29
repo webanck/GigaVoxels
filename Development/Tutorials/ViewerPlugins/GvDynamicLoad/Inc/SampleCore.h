@@ -83,10 +83,10 @@ typedef Loki::TL::MakeTypelist< uchar4 >::Result DataType;
 #endif
 
 // Defines the size of a node tile
-typedef GvCore::StaticRes1D< 2 > NodeRes;
+typedef GvCore::StaticRes1D<2> NodeRes;
 
 // Defines the size of a brick
-typedef GvCore::StaticRes1D< 8 > BrickRes;
+typedef GvCore::StaticRes1D<8> BrickRes;
 
 // Defines the type of structure we want to use
 typedef GvStructure::GvVolumeTree
@@ -387,22 +387,22 @@ public:
 	virtual bool hasLight() const;
 
 	/**
-	 * Get the light position
+	 * Get the light position in the scene referential.
 	 *
-	 * @param pX the X light position
-	 * @param pY the Y light position
-	 * @param pZ the Z light position
+	 * @param pX the X light position.
+	 * @param pY the Y light position.
+	 * @param pZ the Z light position.
 	 */
-	virtual void getLightPosition( float& pX, float& pY, float& pZ ) const;
+	virtual void getLightPosition(float& pX, float& pY, float& pZ) const;
 
 	/**
-	 * Set the light position
+	 * Set the pipeline and OpenGL light position.
 	 *
-	 * @param pX the X light position
-	 * @param pY the Y light position
-	 * @param pZ the Z light position
+	 * @param pX the X light position in the scene referential.
+	 * @param pY the Y light position in the scene referential.
+	 * @param pZ the Z light position in the scene referential.
 	 */
-	virtual void setLightPosition( float pX, float pY, float pZ );
+	virtual void setLightPosition(float pX, float pY, float pZ);
 
 	/**
 	 * Tell wheter or not the pipeline has a 3D model to load.
@@ -463,7 +463,7 @@ protected:
 	float _scale;
 
 	/**
-	 * Light position
+	 * Light position in the scene referential.
 	 */
 	float3 _lightPosition;
 
