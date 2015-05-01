@@ -150,7 +150,7 @@ public:
 		bool& pRequestEmitted,
 		const float3 pSamplePosTree,
 		const float pScreenConeAperture
-	)/* const*/;
+	) const;
 
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************

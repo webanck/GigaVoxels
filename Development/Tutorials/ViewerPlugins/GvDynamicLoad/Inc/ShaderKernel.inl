@@ -132,7 +132,7 @@ inline void ShaderKernel::runImpl(
 
 			//Shadows only.
 			const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
-			// _accColor = make_float4(light_intensity, light_intensity, light_intensity, 1.f);
+			_accColor = make_float4(light_intensity, light_intensity, light_intensity, 1.f);
 
 
 			//Printing only normals.
@@ -198,7 +198,7 @@ float ShaderKernel::marchShadowRay(
 	bool& pRequestEmitted,
 	const float3 pSamplePosTree,
 	const float pScreenConeAperture
-)/* const */{
+) const {
 	const bool priorityOnBrick 		= false;
 	const float brickDivisions 		= BrickRes::getFloat3().x;
 	const float3 firstSamplePosTree = pSamplePosTree;
@@ -285,22 +285,22 @@ float ShaderKernel::marchShadowRay(
 	// 	1.f
 	// );
 
-	// Debug printing
-	_accColor = make_float4(
-		i >= maxLoops,
-		maxcc(mincc(marched_length/lightDistance, 1.f), shader.getColor().w >= 1.f),
-		pRequestEmitted,
-		1.f
-	);
-	// if(marched_length == starting_marched_length)
-	if(i >= maxLoops || marched_length == starting_marched_length)
-		_accColor.x = 1.f;
-
-	if(shader.getColor().w >= 1.f && marched_length >= lightDistance)
-		_accColor.y = 1.f;
-
-	if(pRequestEmitted)
-		_accColor.z = 1.f;
+	// // Debug printing
+	// _accColor = make_float4(
+	// 	i >= maxLoops,
+	// 	maxcc(mincc(marched_length/lightDistance, 1.f), shader.getColor().w >= 1.f),
+	// 	pRequestEmitted,
+	// 	1.f
+	// );
+	// // if(marched_length == starting_marched_length)
+	// if(i >= maxLoops || marched_length == starting_marched_length)
+	// 	_accColor.x = 1.f;
+	//
+	// if(shader.getColor().w >= 1.f && marched_length >= lightDistance)
+	// 	_accColor.y = 1.f;
+	//
+	// if(pRequestEmitted)
+	// 	_accColor.z = 1.f;
 
 	// //Debug printing only light direction.
 	// _accColor = make_float4(
