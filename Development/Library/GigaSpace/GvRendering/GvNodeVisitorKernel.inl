@@ -68,7 +68,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 	const float pConeAperture,
 	float& pNodeSizeTree,
 	float3& pSampleOffsetInNodeTree,
-	GvSamplerKernel< TVolTreeKernelType >& pBrickSampler,
+	GvSamplerKernel<TVolTreeKernelType>& pBrickSampler,
 	bool& pRequestEmitted
 ) {
 	// Useful variables initialization
@@ -238,11 +238,19 @@ __forceinline__ void GvNodeVisitorKernel::visit(
  ******************************************************************************/
 template< class VolumeTreeKernelType >
 __device__
-__forceinline__ void GvNodeVisitorKernel
-::visit( VolumeTreeKernelType& pVolumeTree, uint pMaxDepth, float3 pSamplePos,
-		 uint pNodeTileAddress, GvStructure::GvNode& pNode, float& pNodeSize, float3& pNodePos, uint& pNodeDepth,
-		 uint& pBrickAddressEnc, float3& pBrickPos, float& pBrickScale )
-{
+__forceinline__ void GvNodeVisitorKernel::visit(
+	VolumeTreeKernelType& pVolumeTree,
+	uint pMaxDepth,
+	float3 pSamplePos,
+	uint pNodeTileAddress,
+	GvStructure::GvNode& pNode,
+	float& pNodeSize,
+	float3& pNodePos,
+	uint& pNodeDepth,
+	uint& pBrickAddressEnc,
+	float3& pBrickPos,
+	float& pBrickScale
+) {
 	////descent////
 
 	float nodeSizeInv = 1.0f;

@@ -18,6 +18,10 @@
 *.tar
 *.zip
 
+# Temporary files #
+###################
+*~
+
 # Generated and compiled code #
 ###############################
 Generated_Linux

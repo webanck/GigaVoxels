@@ -50,14 +50,19 @@ namespace GvRendering
  * @param pVolumeTree data structure
  * @param pCache cache
  ******************************************************************************/
-template<	class TBlockResolution, bool TFastUpdateMode, bool TPriorityOnBrick,
-			class TSampleShaderType, class TVolTreeKernelType, class TCacheType >
+template <
+	class TBlockResolution,
+	bool TFastUpdateMode,
+	bool TPriorityOnBrick,
+	class TSampleShaderType,
+	class TVolTreeKernelType,
+	class TCacheType
+>
 __global__
 // TO DO : Prolifing / Optimization
 // - use "Launch Bounds" feature to profile / optimize code
 // __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor ) Ex : (128, 10)
-void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
-{
+void RenderKernelSimple(TVolTreeKernelType pVolumeTree, TCacheType pCache) {
 	CUDAPM_KERNEL_DEFINE_EVENT( 0 )
 	CUDAPM_KERNEL_DEFINE_EVENT( 1 )
 
@@ -117,26 +122,27 @@ void RenderKernelSimple( TVolTreeKernelType pVolumeTree, TCacheType pCache )
 		// Calculate eye ray in tree space
 		//
 		// Apply the inverse set of transformations to the ray to produce an "inverse transformed ray"
-		float3 rayDir = k_renderViewContext.viewPlaneDirTP
-							+ k_renderViewContext.viewPlaneXAxisTP * static_cast< float >( pixelCoords.x )
-							+ k_renderViewContext.viewPlaneYAxisTP * static_cast< float >( pixelCoords.y );
-
-		// Ray start
-		smRayStart = k_renderViewContext.viewCenterTP;
-
+		const float3 rayDir = normalize(
+			k_renderViewContext.viewPlaneDirTP +
+			k_renderViewContext.viewPlaneXAxisTP * static_cast<float>(pixelCoords.x) +
+			k_renderViewContext.viewPlaneYAxisTP * static_cast<float>(pixelCoords.y)
+		);
 		// Not sure to normalize
 		// - traditionaly, in ray-tracing, for the object space, we don't have to normalize the ray
-		rayDir = normalize( rayDir );
+
+		// Ray start (camera center position in volume tree referential).
+		smRayStart = k_renderViewContext.viewCenterTP;
 
 		// Intersect the inverse transformed ray with the untransformed object
 		// - a BBox in [ 0.0; 1.0 ] x [ 0.0; 1.0 ] x [ 0.0; 1.0 ]
 		float boxInterMin = 0.0f;
 		float boxInterMax = 10000.0f;
-		int hit = intersectBox( smRayStart, rayDir, make_float3( 0.001f ), make_float3( 0.999f ), boxInterMin, boxInterMax );
+		int hit = intersectBox(smRayStart, rayDir, make_float3(0.f), make_float3(1.f), boxInterMin, boxInterMax);
 		bool masked = ! ( hit && ( boxInterMax > 0.0f ) );
 
 		// Set closest hit point
 		boxInterMin = maxcc( boxInterMin, k_renderViewContext.frustumNear );	// TO DO : attention, c'est faux => frustumNear est en "espace camera" !!
+		//TODO: et pas un min avec BoxInterMax et frustumFar?
 		float t = boxInterMin + sampleShader.getConeAperture( boxInterMin );
 
 		// Set farthest hit point
@@ -332,12 +338,24 @@ __forceinline__ void GvRendererKernel
  * @param ptMaxTree max distance from camera found after box intersection test and comparing with input z (from the scene)
  * @param ptTree the distance from camera found after box intersection test and comparing with input z (from the scene)
  ******************************************************************************/
-template< bool TFastUpdateMode, bool TPriorityOnBrick, class VolTreeKernelType, class SampleShaderType, class TCacheType >
+template <
+	bool TFastUpdateMode,
+	bool TPriorityOnBrick,
+	class VolTreeKernelType,
+	class SampleShaderType,
+	class TCacheType
+>
 __device__
-__forceinline__ void GvRendererKernel
-::render( VolTreeKernelType& pDataStructure, SampleShaderType& pShader, TCacheType& pCache,
-		  uint2 pPixelCoords, const float3 pRayStartTree, const float3 pRayDirTree, const float ptMaxTree, float& ptTree )
-{
+__forceinline__ void GvRendererKernel::render(
+	VolTreeKernelType& pDataStructure,
+	SampleShaderType& pShader,
+	TCacheType& pCache,
+	uint2 pPixelCoords,
+	const float3 pRayStartTree,
+	const float3 pRayDirTree,
+	const float ptMaxTree,
+	float& ptTree
+) {
 	CUDAPM_KERNEL_DEFINE_EVENT( 2 )
 	CUDAPM_KERNEL_DEFINE_EVENT( 3 )
 	CUDAPM_KERNEL_DEFINE_EVENT( 4 )
@@ -406,9 +424,9 @@ __forceinline__ void GvRendererKernel
 			// PASCAL
 			// This is used to stop the ray with a z-depth value smaller than the remaining brick ray length
 			//
-			// QUESTION : pas forc�ment, si objet qui cache est transparent !??
+			// QUESTION : pas forcément, si objet qui cache est transparent !??
 			// => non, comme d'hab en OpenGL => dessiner d'abord les objets opaques
-			const float rayLengthInBrick = mincc( rayLengthInNodeTree, ptMaxTree - ptTree );	// ==> attention, ( ptMaxTree - ptTree < 0 ) ?? ==> non, � casue du test du WHILE !! c'est OK !!
+			const float rayLengthInBrick = mincc( rayLengthInNodeTree, ptMaxTree - ptTree );	// ==> attention, ( ptMaxTree - ptTree < 0 ) ?? ==> non, à casue du test du WHILE !! c'est OK !!
 																								// MAIS possible en cas d'erreur sur "float" !!!!!
 
 			// This is where shader program occurs
