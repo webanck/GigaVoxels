@@ -44,19 +44,6 @@
  ****************************** KERNEL DEFINITION *****************************
  ******************************************************************************/
 
-/******************************************************************************
- * ...
- *
- * @param materialColor ...
- * @param normalVec ...
- * @param lightVec ...
- * @param eyeVec ...
- * @param ambientTerm ...
- * @param diffuseTerm ...
- * @param specularTerm ...
- *
- * @return ...
- ******************************************************************************/
 __device__
 inline float3 ShaderKernel::shadePointLight(
 	float3 materialColor,
@@ -88,20 +75,12 @@ inline float3 ShaderKernel::shadePointLight(
 	return final_color;
 }
 
-/******************************************************************************
- * ...
- *
- * @param brickSampler ...
- * @param samplePosScene ...
- * @param rayDir ...
- * @param rayStep ...
- * @param coneAperture ...
- ******************************************************************************/
 template <typename TSamplerType, typename TGPUCacheType>
 __device__
 inline void ShaderKernel::runImpl(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
+	bool& pRequestEmitted,
 	const float3 pSamplePosScene,
 	const float3 pRayDir,
 	float& pRayStep,
@@ -120,28 +99,40 @@ inline void ShaderKernel::runImpl(
 		//Process only data with non null normal.
 		if(length(normal3) > 0.f) {
 			const float3 normalVec 	= normalize(normal3);
+			// const float3 color 		= make_float3(pSamplePosScene.x, pSamplePosScene.y, pSamplePosScene.z);
 			const float3 color 		= make_float3(material_color.x, material_color.y, material_color.z);
-			const float3 lightVec 	= normalize(cLightPosition - pSamplePosScene);
+			const float3 lightVec 	= normalize(cLightPositionTree - pSamplePosScene);
 			const float3 viewVec 	= -1.f * pRayDir;
 			const float3 ambient	= make_float3(0.2f);
 			const float3 diffuse	= make_float3(1.f);
 			const float3 specular	= make_float3(0.9f);
 
-			//Shadows.
-			const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pSamplePosScene, pRayStep, pConeAperture);
-			//Common shading.
-			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
-			// -- [ Opacity correction ] --
-			// The standard equation :
-			//		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
-			// must take alpha correction into account
-			// NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
-			const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * 512.f));//pourquoi 512??
-			const float3 corrected_color = shaded_color / alpha * alpha_correction;
-			_accColor.x += corrected_color.x;
-			_accColor.y += corrected_color.y;
-			_accColor.z += corrected_color.z;
-			_accColor.w += alpha_correction;
+
+			// //Shadows.
+			// const float light_intensity = (
+			// 	//DEBUG: test sur 1 octant seulement
+			// 	/*pSamplePosScene.x > 0.f && pSamplePosScene.y < 0.5f && pSamplePosScene.z > 0.5f*/ true ?
+			// 	marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture) :
+			// 	1.f
+			// );
+			// //Common shading.
+			// const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
+			// // -- [ Opacity correction ] --
+			// // The standard equation :
+			// //		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
+			// // must take alpha correction into account
+			// // NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
+			// const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * 512.f));//pourquoi 512??
+			// const float3 corrected_color = shaded_color / alpha * alpha_correction;
+			// _accColor.x += corrected_color.x;
+			// _accColor.y += corrected_color.y;
+			// _accColor.z += corrected_color.z;
+			// // _accColor.w += alpha_correction;
+			// _accColor.w = 1.f; //mat objects
+
+			//Shadows only.
+			const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
+			// _accColor = make_float4(light_intensity, light_intensity, light_intensity, 1.f);
 
 
 			//Printing only normals.
@@ -155,6 +146,46 @@ inline void ShaderKernel::runImpl(
 			// 	);
 			// }
 
+			// //Printing only sample position.
+			// _accColor = make_float4(
+			// 	pSamplePosScene.x,
+			// 	pSamplePosScene.y,
+			// 	pSamplePosScene.z,
+			// 	1.f
+			// );
+
+			// //Printing only light direction.
+			// _accColor = make_float4(
+			// 	(lightVec.x + 1.f)/2.f,
+			// 	(lightVec.y + 1.f)/2.f,
+			// 	(lightVec.z + 1.f)/2.f,
+			// 	1.f
+			// );
+
+			//Printing only if a request has been added to the cache.
+			// _accColor = make_float4(
+			// 	pRequestEmitted,
+			// 	pRequestEmitted,
+			// 	pRequestEmitted,
+			// 	1.f
+			// );
+
+			// //Printing only node size.
+			// _accColor = make_float4(
+			// 	pBrickSampler._nodeSizeTree/0.5f,
+			// 	pBrickSampler._nodeSizeTree/0.5f,
+			// 	pBrickSampler._nodeSizeTree/0.5f,
+			// 	1.f
+			// );
+
+			// //Printing only cone aperture.
+			// _accColor = make_float4(
+			// 	pConeAperture/0.01f,
+			// 	pConeAperture/0.01f,
+			// 	pConeAperture/0.01f,
+			// 	1.f
+			// );
+
 		}
 	}
 }
@@ -164,117 +195,194 @@ __device__
 float ShaderKernel::marchShadowRay(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
-	const float3 pSamplePosScene,
-	float& pRayStep,
+	bool& pRequestEmitted,
+	const float3 pSamplePosTree,
 	const float pScreenConeAperture
-) {
+)/* const */{
+	const bool priorityOnBrick 		= false;
+	const float brickDivisions 		= BrickRes::getFloat3().x;
+	const float3 firstSamplePosTree = pSamplePosTree;
+	const float firstSampleDiameter = pBrickSampler._nodeSizeTree/brickDivisions;
+	const float3 lightVec 			= cLightPositionTree - firstSamplePosTree;
+	const float3 lightDirection 	= normalize(lightVec);
+	const float lightDistance 		= length(lightVec); //TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (the remaining distance is empty).
+	const float lightDiameter		= 0.f; //a parameter to be: light tweaking if not point light
+	float coneAperture 				= 1.33f * pBrickSampler._nodeSizeTree;
+	const float starting_marched_length = 2.f * firstSampleDiameter;
 
-	const float3 lightVec 		= pSamplePosScene - cLightPosition;
-	const float3 lightDirection = normalize(lightVec);
-	const float  lightDistance 	= length(lightVec);
-	const float  lightDiameter	= 0.f; //a parameter to be: light tweaking if not point light
-	// const float sampleDiameter = ???? => retrieved during structure traversal
 
-	//const float brickDivisions = TSamplerType::VolumeTreeKernelType::getFloat3().x;
-	//const float brickDivisions = BrickRes::getFloat3().x;
-	//float coneAperture = pBrickSampler._nodeSizeTree/brickDivisions;
-	float coneAperture = pScreenConeAperture;
-	float marched_length = 0.f;
-	// float light_intensity = 1.f; //We are considering a light intensity which can only decrease.
-	//TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (the remaining distance is empty).
-	ShadowRayShaderKernel shader; // The shader used for shadow ray marching.
 
-	while(marched_length < lightDistance && shader.getColor().w < 1.f) {
+	float marched_length = starting_marched_length;
+	ShadowRayShaderKernel shader(lightDistance, lightDiameter, firstSampleDiameter); // The shader used for shadow ray marching.
+	float3 samplePosTree = firstSamplePosTree + lightDirection * marched_length;
+	const uint maxLoops = 1000;
+	uint i = 0;
+	//Ray/cone marching from the first sample to the light and accumulating alpha in the shader.
+	while(marched_length < lightDistance && !shader.stopCriterionImpl(samplePosTree) && i++ < maxLoops) {
+		//Position of the next sample will give the node and offset in it's brick.
+		float3 samplePosTree = firstSamplePosTree + lightDirection * marched_length;
 
-		// Declare an empty node of the data structure.
-		// It will be filled during the traversal according to current sample position "samplePosTree".
+		//The next node will be filled by the node visitor.
 		GvStructure::GvNode node;
-
-		// [ 1 ] - Descent the data structure (in general an octree)
-		// until max depth is reach or current traversed node has no subnodes,
-		// or cone aperture is greater than voxel size.
 		float sampleDiameter = 0.f;
 		float3 sampleOffsetInNodeTree = make_float3(0.f);
 		//The new brick sampler will be filled by the node visitor.
 		TSamplerType new_brickSampler;
 		new_brickSampler._volumeTree = pBrickSampler._volumeTree;
-		bool modifInfoWriten = false;
 
-		// // bool TPriorityOnBrick = true; //TPriorityOnBrick = ? => bool(true)
-		const float3 samplePosTree = pSamplePosScene;//samplePosTree != samplePosScene ?
-		const float const_coneAperture = coneAperture;
-		const float3 pRayDirTree = lightDirection; //pRayDirTree = ?
-
+		//Node visitor call.
 		GvRendering::GvNodeVisitorKernel::visit<
-			true
+			priorityOnBrick
 		>(
 			*(new_brickSampler._volumeTree),
 			pGpuCache,
 			node,
 			samplePosTree,
-			const_coneAperture,
+			coneAperture,
 			sampleDiameter,
 			sampleOffsetInNodeTree,
 			new_brickSampler,
-			modifInfoWriten
+			pRequestEmitted
 		);
+		//if(pRequestEmitted) break;
 
-		const float rayLengthInNodeTree = GvRendering::getRayLengthInNode(sampleOffsetInNodeTree, sampleDiameter, pRayDirTree);
+		const float rayLengthInNodeTree = GvRendering::getRayLengthInNode(sampleOffsetInNodeTree, sampleDiameter, lightDirection);
 
-		//Different cases regarding the retrieved node: a brick or not.
-		if(!node.isBrick()) {
+		//Different cases regarding the retrieved node: with a brick or not.
+		if(!node.isBrick() || node.isTerminal() || !node.hasSubNodes()) {
 			marched_length += rayLengthInNodeTree;
+			marched_length += shader.getConeApertureImpl(marched_length);
 		} else {
 			// Where the "shading is done": just accumulating alpha from brick samples.
-			const float3 pRayStartTree = pSamplePosScene; //pRayStartTree = ?
-			const float ptTree = marched_length; //ptTree = ?
+			const float maxRayLengthInBrick = maxcc(0.f, mincc(rayLengthInNodeTree, lightDistance - marched_length));
 			const float rayLengthInBrick = GvRendering::GvBrickVisitorKernel::visit<
 				true,
-				true
+				priorityOnBrick
 			>(
 				*(new_brickSampler._volumeTree),
 				shader,
 				pGpuCache,
-				pRayStartTree,
-				pRayDirTree,
-				ptTree,
-				rayLengthInNodeTree,
+				firstSamplePosTree,
+				lightDirection,
+				marched_length,
+				maxRayLengthInBrick,
 				new_brickSampler,
-				modifInfoWriten
+				pRequestEmitted
 			);
 			marched_length += rayLengthInBrick;
-			// marched_length += coneAperture;
 		}
 
 		//Update the cone aperture (thales theorem) depending on the position between the sample and the light and the diameters of the light and the sample.
-		coneAperture = marched_length * (lightDiameter - sampleDiameter) / lightDistance + sampleDiameter;
+		coneAperture = shader.getConeApertureImpl(marched_length);
 	}
+
+	// //Debug printing only the marched distance ratio.
+	// const float marched_ratio = mincc(marched_length/lightDistance, 1.f);
+	// _accColor = make_float4(
+	// 	marched_ratio,
+	// 	marched_ratio,
+	// 	marched_ratio,
+	// 	1.f
+	// );
+
+	// Debug printing
+	_accColor = make_float4(
+		i >= maxLoops,
+		maxcc(mincc(marched_length/lightDistance, 1.f), shader.getColor().w >= 1.f),
+		pRequestEmitted,
+		1.f
+	);
+	// if(marched_length == starting_marched_length)
+	if(i >= maxLoops || marched_length == starting_marched_length)
+		_accColor.x = 1.f;
+
+	if(shader.getColor().w >= 1.f && marched_length >= lightDistance)
+		_accColor.y = 1.f;
+
+	if(pRequestEmitted)
+		_accColor.z = 1.f;
+
+	// //Debug printing only light direction.
+	// _accColor = make_float4(
+	// 	(lightDirection.x + 1.f)/2.f,
+	// 	(lightDirection.y + 1.f)/2.f,
+	// 	(lightDirection.z + 1.f)/2.f,
+	// 	1.f
+	// );
+
+	// //Debug printing only light distance.
+	// _accColor = make_float4(
+	// 	lightDistance,
+	// 	lightDistance,
+	// 	lightDistance,
+	// 	1.f
+	// );
 
 	return (shader.getColor().w < 1.f ? 1.f - shader.getColor().w : 0.f);
 }
 
 
-/******************************************************************************
-* ...
-*
-* @param brickSampler ...
-* @param samplePosScene ...
-* @param rayDir ...
-* @param rayStep ...
-* @param coneAperture ...
-******************************************************************************/
+
+
+
+
+
+__device__
+ShadowRayShaderKernel::ShadowRayShaderKernel(/*const float3 pLightPosition, */const float pLightDistanceTree, const float pLightSize, const float pSampleSize):
+	_lightDistanceTree(pLightDistanceTree),
+	_lightSize(pLightSize),
+	_sampleSize(pSampleSize)
+{
+}
+
 template <typename TSamplerType, class TGPUCacheType>
 __device__
 inline void ShadowRayShaderKernel::runImpl(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
+	bool& pRequestEmitted,
 	const float3 pSamplePosScene,
 	const float3 pRayDir,
 	float& pRayStep,
 	const float pConeAperture
 ) {
-	_accColor.x = 1.f;
-	_accColor.y = 1.f;
-	_accColor.z = 1.f;
-	_accColor.w += 0.5f;
+	//Retrieve material color from voxel's attached data.
+	const float4 material_color = pBrickSampler.template getValue<0>(pConeAperture);
+	const float alpha = material_color.w;
+
+	//Process only visible voxels.
+	if(alpha > 0.f) {
+		//Smooth shadows.
+		// _accColor.w += (1.f - _accColor.w) * alpha * pBrickSampler._nodeSizeTree/BrickRes::getFloat3().x;
+		_accColor.w += alpha;
+
+		// //Hard shadows.
+		// _accColor.w = 1.f;
+	}
+}
+
+__device__
+inline float ShadowRayShaderKernel::getConeApertureImpl(const float tTree) const {
+	//Compute the cone aperture (thales theorem) depending on the position between the sample and the light and the diameters of the light and the sample.
+
+	// // Overestimate to avoid aliasing
+	// const float scaleFactor = 1.333f;
+
+	//Three different cases: light diameter bigger/smaller/same than the sample diameter.
+	if(_lightSize > _sampleSize) return tTree/_lightDistanceTree*(_lightSize - _sampleSize) + _sampleSize;
+	else if(_lightSize < _sampleSize) return (_lightDistanceTree - tTree)/_lightDistanceTree*(_sampleSize - _lightSize) + _lightSize;
+	else return _lightSize;
+}
+
+__device__
+__forceinline__ bool ShadowRayShaderKernel::stopCriterionImpl(const float3& pRayPosTree) const {
+	return
+		_accColor.w >= 1.f ||
+		pRayPosTree.x < 0.f ||
+		pRayPosTree.y < 0.f ||
+		pRayPosTree.z < 0.f ||
+		pRayPosTree.x > 1.f ||
+		pRayPosTree.y > 1.f ||
+		pRayPosTree.z > 1.f
+	;
 }
