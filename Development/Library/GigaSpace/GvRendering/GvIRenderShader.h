@@ -145,16 +145,19 @@ namespace GvRendering
 		 * should be done here.
 		 *
 		 * @param pBrickSampler brick sampler
+		 * @param pGpuCache The GPU cache required to access volume tree data.
+		 * @param pRequestEmitted A boolean to set to true if a cache request has been done.
 		 * @param pSamplePosScene position of the sample in the scene
 		 * @param pRayDir ray direction
 		 * @param pRayStep ray step
 		 * @param pConeAperture cone aperture
 		 */
-		template<typename TSamplerType, class TGPUCacheType>
+		template <typename TSamplerType, class TGPUCacheType>
 		__device__
 		inline void run(
 			const TSamplerType& pBrickSampler,
 			TGPUCacheType& pGpuCache,
+			bool& pRequestEmitted,
 			const float3 pSamplePosScene,
 			const float3 pRayDir,
 			float& pRayStep,

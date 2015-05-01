@@ -125,11 +125,19 @@ inline bool GvIRenderShader< TDerived >::descentCriterion( const float pVoxelSiz
  * @param pRayStep ray step
  * @param pConeAperture cone aperture
  ******************************************************************************/
-template< typename TDerived >
-template< typename TSamplerType, class TGPUCacheType  >
+template <typename TDerived>
+template <typename TSamplerType, class TGPUCacheType>
 __device__
-inline void GvIRenderShader< TDerived >::run(const TSamplerType& pBrickSampler, TGPUCacheType& pGpuCache, const float3 pSamplePosScene, const float3 pRayDir, float& pRayStep, const float pConeAperture) {
-	static_cast< TDerived* >( this )->runImpl( pBrickSampler, pGpuCache, pSamplePosScene, pRayDir, pRayStep, pConeAperture );
+inline void GvIRenderShader< TDerived >::run(
+	const TSamplerType& pBrickSampler,
+	TGPUCacheType& pGpuCache,
+	bool& pRequestEmitted,
+	const float3 pSamplePosScene,
+	const float3 pRayDir,
+	float& pRayStep,
+	const float pConeAperture
+) {
+	static_cast<TDerived *>(this)->runImpl(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pRayDir, pRayStep, pConeAperture);
 }
 
 } // namespace GvRendering

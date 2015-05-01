@@ -60,13 +60,25 @@ namespace GvRendering
  *
  * @return the distance where ray-marching has stopped
  ******************************************************************************/
-template< bool TFastUpdateMode, bool TPriorityOnBrick, class TVolumeTreeKernelType, class TSampleShaderType, class TGPUCacheType >
+template <
+	bool TFastUpdateMode,
+	bool TPriorityOnBrick,
+	class TVolumeTreeKernelType,
+	class TSampleShaderType,
+	class TGPUCacheType
+>
 __device__
-float GvBrickVisitorKernel
-::visit( TVolumeTreeKernelType& pVolumeTree, TSampleShaderType& pSampleShader,
-		 TGPUCacheType& pGpuCache, const float3 pRayStartTree, const float3 pRayDirTree, const float pTTree,
-		 const float pRayLengthInNodeTree, GvSamplerKernel< TVolumeTreeKernelType >& pBrickSampler, bool& pModifInfoWriten )
-{
+float GvBrickVisitorKernel::visit(
+	TVolumeTreeKernelType& pVolumeTree,
+	TSampleShaderType& pSampleShader,
+	TGPUCacheType& pGpuCache,
+	const float3 pRayStartTree,
+	const float3 pRayDirTree,
+	const float pTTree,
+	const float pRayLengthInNodeTree,
+	GvSamplerKernel<TVolumeTreeKernelType>& pBrickSampler,
+	bool& pModifInfoWriten
+) {
 	// Current position in tree space
 	float3 samplePosTree = pRayStartTree + pTTree * pRayDirTree;
 
@@ -103,7 +115,7 @@ float GvBrickVisitorKernel
 		rayStep = max( coneAperture, pBrickSampler._nodeSizeTree * ( 0.66f / static_cast< float>( TVolumeTreeKernelType::BrickResolution::x ) ) );
 
 		// Shading (+ adaptative step)
-		pSampleShader.run( pBrickSampler, pGpuCache, samplePosTree, pRayDirTree, rayStep, coneAperture );
+		pSampleShader.run( pBrickSampler, pGpuCache, pModifInfoWriten, samplePosTree, pRayDirTree, rayStep, coneAperture );
 
 		// Update local distance
 		dt += rayStep;
