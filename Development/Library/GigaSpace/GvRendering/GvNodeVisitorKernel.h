@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -65,7 +65,7 @@
 namespace GvRendering
 {
 
-/** 
+/**
  * @class GvNodeVisitorKernel
  *
  * @brief The GvNodeVisitorKernel class provides ...
@@ -103,16 +103,28 @@ public:
 	 * @param pBrickSampler The sampler object used to sample data in the data structure, it will be initialized after the descent
 	 * @param pRequestEmitted a returned flag to tell wheter or not a request has been emitted during descent
 	 */
-	template< bool priorityOnBrick, class TVolTreeKernelType, class GPUCacheType >
+	template <
+		bool priorityOnBrick,
+		class TVolTreeKernelType,
+		class GPUCacheType
+	>
 	__device__
-	static __forceinline__ void visit( TVolTreeKernelType& pVolumeTree, GPUCacheType& pGpuCache, GvStructure::GvNode& pNode,
-										const float3 pSamplePosTree, const float pConeAperture, float& pNodeSizeTree, float3& pSampleOffsetInNodeTree,
-										GvSamplerKernel< TVolTreeKernelType >& pBrickSampler, bool& pRequestEmitted );
+	static __forceinline__ void visit(
+		TVolTreeKernelType& pVolumeTree,
+		GPUCacheType& pGpuCache,
+		GvStructure::GvNode& pNode,
+		const float3 pSamplePosTree,
+		const float pConeAperture,
+		float& pNodeSizeTree,
+		float3& pSampleOffsetInNodeTree,
+		GvSamplerKernel<TVolTreeKernelType>& pBrickSampler,
+		bool& pRequestEmitted
+	);
 
 	/**
 	 * Descent in volume tree until max depth is reach or current traversed node has no subnodes.
 	 * Perform a descent in a volume tree from a starting node tile address, until a max depth
-	 * Given a 3D sample position, 
+	 * Given a 3D sample position,
 	 *
 	 * @param pVolumeTree The volume tree on which descent in done
 	 * @param pMaxDepth Max depth of the descent
@@ -126,11 +138,21 @@ public:
 	 * @param pBrickPos ...
 	 * @param pBrickScale ...
 	 */
-	template< class VolumeTreeKernelType >
+	template <class VolumeTreeKernelType>
 	__device__
-	static __forceinline__ void visit( VolumeTreeKernelType& pVolumeTree, uint pMaxDepth, float3 pSamplePos,
-										uint pNodeTileAddress, GvStructure::GvNode& pNode, float& pNodeSize, float3& pNodePos, uint& pNodeDepth,
-										uint& pBrickAddressEnc, float3& pBrickPos, float& pBrickScale );
+	static __forceinline__ void visit(
+		VolumeTreeKernelType& pVolumeTree,
+		uint pMaxDepth,
+		float3 pSamplePos,
+		uint pNodeTileAddress,
+		GvStructure::GvNode& pNode,
+		float& pNodeSize,
+		float3& pNodePos,
+		uint& pNodeDepth,
+		uint& pBrickAddressEnc,
+		float3& pBrickPos,
+		float& pBrickScale
+	);
 
 	/**
 	 * Descent in data structure (in general octree) until max depth is reach or current traversed node has no subnodes,
