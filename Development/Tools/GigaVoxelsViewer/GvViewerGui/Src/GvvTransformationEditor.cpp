@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -204,7 +204,7 @@ void GvvTransformationEditor::on__zTranslationSpinBox_valueChanged( double pValu
 }
 
 /******************************************************************************
- * Slot called when max depth value has changed
+ * Slot called when ... value has changed
  ******************************************************************************/
 void GvvTransformationEditor::on__xRotationSpinBox_valueChanged( double pValue )
 {
@@ -229,7 +229,7 @@ void GvvTransformationEditor::on__xRotationSpinBox_valueChanged( double pValue )
 }
 
 /******************************************************************************
- * Slot called when max depth value has changed
+ * Slot called when ... value has changed
  ******************************************************************************/
 void GvvTransformationEditor::on__yRotationSpinBox_valueChanged( double pValue )
 {
@@ -254,7 +254,7 @@ void GvvTransformationEditor::on__yRotationSpinBox_valueChanged( double pValue )
 }
 
 /******************************************************************************
- * Slot called when max depth value has changed
+ * Slot called when ... value has changed
  ******************************************************************************/
 void GvvTransformationEditor::on__zRotationSpinBox_valueChanged( double pValue )
 {
@@ -279,7 +279,7 @@ void GvvTransformationEditor::on__zRotationSpinBox_valueChanged( double pValue )
 }
 
 /******************************************************************************
- * Slot called when max depth value has changed
+ * Slot called when max ... has changed
  ******************************************************************************/
 void GvvTransformationEditor::on__angleRotationSpinBox_valueChanged( double pValue )
 {
