@@ -96,7 +96,7 @@ Secondly, uncomment the compute capability corresponding to your GPU in the foll
 - [Development/Tutorials/Demos/CMakeLists.txt](Development/Tutorials/Demos/CMakeLists.txt)
 
 To help you, the lines of interest are looking like that:
-```
+```cmake
 # Set your compute capability version (comment/uncomment with #)
 #
 # GiagVoxels requires 2.0 at least
