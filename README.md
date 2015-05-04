@@ -107,4 +107,4 @@ list(APPEND CUDA_NVCC_FLAGS "-arch=sm_20")
 ```
 
 ###Compile
-I added a [shell script](Install/Linux/makeInstall.sh) for the Linux users so they only have to launch it to clean and recompile all the library, the tools and the specific example I am working on: the [GvDynamycLoad](Development/Tutorials/ViewerPlugins/GvDynamycLoad).
+I added a [shell script](Install/Linux/makeInstall.sh) for the Linux users so they only have to launch it to clean and recompile all the library, the tools and the specific example I am working on: the [GvDynamicLoad](Development/Tutorials/ViewerPlugins/GvDynamicLoad).
