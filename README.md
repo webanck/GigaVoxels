@@ -11,7 +11,7 @@ The main components are implemented in C++ using mainly CUDA and a bit of OpenGL
 A Nvidia GPU is required in order to run the CUDA executable on the GPU side.
 Be sure to check the compute capability of your specific model because you will need this information later during the configuration of the library.
 
-Warning: if your GPU is to old, it might not eve be compatible with CUDA! So, again, check the compute capability before going further.
+Warning: if your GPU is to old, it might not even be compatible with CUDA! So, again, check the compute capability before going further.
 
 ###CUDA
 
