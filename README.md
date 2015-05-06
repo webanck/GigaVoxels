@@ -42,10 +42,10 @@ Once you have the source code you can run the CMake GUI:
 ```
 cmake-gui
 ```
-Firstly, set the paths for the source code directory and where you want the binaries to be built.
+Firstly, set the paths for the root of the CUDPP repository and where you want the project to be built.
 Click on `Configure` and  choose your type of code generator: `Unix Makefiles` for Linux.
 
-Then, set the specific variables:
+Then, set the specific variables (check `Advanced` if you can't see those):
 - add the `-fPIC` parameter to `CMAKE_CXX_FLAGS` and `CMAKE_C_FLAGS`
 - verify the path of `CUDA_TOOLKIT_ROOT_DIR` (`/usr/local/cuda/include` for me)
 - check `CUDPP_BUILD_SHARED_LIBS`
@@ -56,7 +56,7 @@ Go to the path you set before (where to build the binaries) and compile.
 On Linux with the `Unix Makefiles`:
 ```
 make
-make install
+sudo make install
 ```
 
 ###Libraries
@@ -89,6 +89,25 @@ The source code and the config files for CMake are in the [Development](Developm
 ###Configure
 You need to adapt some settings to your environment.
 Firstly, if any, give the path of the external required libraries in the file [GvSettings_CMakeImport.cmake](Development/CMake/GvSettings_CMakeImport.cmake).
+For instance, you might have to change the path of the CUDPP library you compiled earlier or you can move it to `/usr/local/cudpp` (see the lines bellow).
+```cmake
+#----------------------------------------------------------------
+# CUDPP library settings
+#----------------------------------------------------------------
+
+if (WIN32)
+    set (GV_CUDPP_RELEASE "${GV_EXTERNAL}/cudpp")
+    set (GV_CUDPP_INC "${GV_CUDPP_RELEASE}/include")
+    set (GV_CUDPP_LIB "${GV_CUDPP_RELEASE}/lib")
+#	set (GV_CUDPP_BIN "${GV_CUDPP_RELEASE}/bin")
+else ()
+    set (GV_CUDPP_RELEASE "/usr/local/cudpp")
+    set (GV_CUDPP_INC "${GV_CUDPP_RELEASE}/include")
+    set (GV_CUDPP_LIB "${GV_CUDPP_RELEASE}/lib")
+#	set (GV_CUDPP_BIN "${GV_CUDPP_RELEASE}/bin")
+endif ()
+```
+
 Secondly, uncomment the compute capability corresponding to your GPU in the following files:
 - [Development/Library/CMakeLists.txt](Development/Library/CMakeLists.txt)
 - [Development/Tools/CMakeLists.txt](Development/Tools/CMakeLists.txt)
