@@ -9,6 +9,11 @@ CURRENT_PATH=$PWD
 #Selection of the QT version for systems with multiple versions.
 export QT_SELECT=4
 
+#Global cleaning.
+cd ../../ && \
+find ./ -name "CMakeCache.txt" -print0 | xargs -0 rm -rf && \
+cd $CURRENT_PATH && \
+
 #Copy of the required stuff for the binaries directory.
 sh ./updateData.sh && \
 sh ./updateShaders.sh && \
