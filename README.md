@@ -51,7 +51,7 @@ Then, set the specific variables (check `Advanced` if you can't see those):
 - check `CUDPP_BUILD_SHARED_LIBS`
 - check the compute capability corresponding to your GPU (`CUDPP_GENCODE_SM20` for me)
 
-You can now click on `Generate` and go to the next step: actually compiling CUDPP.
+You can now click again on `Configure` and then `Generate` and go to the next step: actually compiling CUDPP.
 Go to the path you set before (where to build the binaries) and compile.
 On Linux with the `Unix Makefiles`:
 ```
