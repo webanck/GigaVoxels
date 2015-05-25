@@ -32,12 +32,12 @@ make clean && \
 make -j5 && \
 cd $CURRENT_PATH && \
 
-#Compilation of the DynamicLoad ViewerPlugin.
+#Compilation of the AnimatedCylinders ViewerPlugin.
 sh ./makeDemoTutorials.sh && \
 sh ./makeViewerPluginTutorials.sh && \
 cd ../../Generated_Linux/Tutorials/ViewerPlugins && \
 make clean && \
-make -j5 GvDynamicLoad && \
+make -j5 GvAnimatedCylinders && \
 cd $CURRENT_PATH
 
 #~ sh ./updateRelease.sh

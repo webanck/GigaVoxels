@@ -177,6 +177,7 @@ list(APPEND CUDA_NVCC_FLAGS "-arch=sm_20")
 # Procedural generation
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleSphere")
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleCube")
+add_subdirectory ("${CMAKE_SOURCE_DIR}/GvAnimatedCylinders")
 #add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSimpleTorus")
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvMandelbrotSet")
 add_subdirectory ("${CMAKE_SOURCE_DIR}/GvSlisesix")
