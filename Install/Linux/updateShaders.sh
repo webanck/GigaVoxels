@@ -48,6 +48,8 @@ mkdir -p $GV_RELEASE/Bin/Data/Shaders/GvSignedDistanceFieldVoxelization
 cp -v -L -u -R $GV_DATA/Tutorials/ViewerPlugins/GvSignedDistanceFieldVoxelization/Res/*.* $GV_RELEASE/Bin/Data/Shaders/GvSignedDistanceFieldVoxelization/.
 mkdir -p $GV_RELEASE/Bin/Data/Shaders/GvSimpleSphere
 cp -v -L -u -R $GV_DATA/Tutorials/ViewerPlugins/GvSimpleSphere/Res/*.* $GV_RELEASE/Bin/Data/Shaders/GvSimpleSphere/.
+mkdir -p $GV_RELEASE/Bin/Data/Shaders/GvAnimatedCylinders
+cp -v -L -u -R $GV_DATA/Tutorials/ViewerPlugins/GvAnimatedCylinders/Res/*.* $GV_RELEASE/Bin/Data/Shaders/GvAnimatedCylinders/.
 mkdir -p $GV_RELEASE/Bin/Data/Shaders/GvVBOGenerator
 cp -v -L -u -R $GV_DATA/Tutorials/ViewerPlugins/GvVBOGenerator/Res/*.* $GV_RELEASE/Bin/Data/Shaders/GvVBOGenerator/.
 mkdir -p $GV_RELEASE/Bin/Data/Shaders/GvAnimatedLUT
