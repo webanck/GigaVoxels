@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -54,7 +54,7 @@
 namespace GvRendering
 {
 
-/** 
+/**
  * @struct GvSamplerKernel
  *
  * @brief The GvSamplerKernel struct provides features
@@ -63,9 +63,9 @@ namespace GvRendering
  * The rendering stage is done brick by brick along a ray.
  * The sampler is used to store useful current parameters needed to fecth data from data pool.
  *
- * @param VolumeTreeKernelType the data structure to sample data into.
+ * @param TVolumeTreeKernelType the data structure to sample data into.
  */
-template< typename VolumeTreeKernelType >
+template< typename TVolumeTreeKernelType >
 struct GvSamplerKernel
 {
 
@@ -75,13 +75,15 @@ struct GvSamplerKernel
 
 	/****************************** INNER TYPES *******************************/
 
+	typedef TVolumeTreeKernelType VolumeTreeKernelType;
+
 	/******************************* ATTRIBUTES *******************************/
 
 	/**
 	 * Data structure.
 	 * It is used to sample data into (the data pool is store inside the data structure)
 	 */
-	VolumeTreeKernelType* _volumeTree;
+	TVolumeTreeKernelType* _volumeTree;
 
 	/**
 	 * Position of the brick in data pool (i.e. in 3D texture space)
@@ -92,12 +94,12 @@ struct GvSamplerKernel
 	 * Position of the parent brick in data pool (i.e. in 3D texture space)
 	 */
 	float3 _brickParentPosInPool;
-		
+
 	/**
 	 * Sample offset in the node
 	 */
 	float3 _sampleOffsetInNodeTree;
-		
+
 	/**
 	 * Node/brick size
 	 */

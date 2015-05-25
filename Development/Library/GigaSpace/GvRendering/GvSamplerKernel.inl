@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -46,10 +46,10 @@ namespace GvRendering
  *
  * @return the sampled value
  ******************************************************************************/
-template< typename VolumeTreeKernelType >
+template< typename TVolumeTreeKernelType >
 template< int channel >
 __device__
-__forceinline__ float4 GvSamplerKernel< VolumeTreeKernelType >::getValue( const float coneAperture ) const
+__forceinline__ float4 GvSamplerKernel< TVolumeTreeKernelType >::getValue( const float coneAperture ) const
 {
 	return _volumeTree->template getSampleValue< channel >( _brickChildPosInPool, _brickParentPosInPool, _scaleTree2BrickPool * _sampleOffsetInNodeTree,
 														   coneAperture,
@@ -64,10 +64,10 @@ __forceinline__ float4 GvSamplerKernel< VolumeTreeKernelType >::getValue( const 
  *
  * @return the sampled value
  ******************************************************************************/
-template< typename VolumeTreeKernelType >
+template< typename TVolumeTreeKernelType >
 template< int channel >
 __device__
-__forceinline__ float4 GvSamplerKernel< VolumeTreeKernelType >::getValue( const float coneAperture, const float3 offsetTree ) const
+__forceinline__ float4 GvSamplerKernel< TVolumeTreeKernelType >::getValue( const float coneAperture, const float3 offsetTree ) const
 {
 	return _volumeTree->template getSampleValue< channel >( _brickChildPosInPool, _brickParentPosInPool, _scaleTree2BrickPool * ( _sampleOffsetInNodeTree + offsetTree ),
 														   coneAperture,
@@ -79,9 +79,9 @@ __forceinline__ float4 GvSamplerKernel< VolumeTreeKernelType >::getValue( const 
  *
  * @param offsetTree offset in tree
  ******************************************************************************/
-template< typename VolumeTreeKernelType >
+template< typename TVolumeTreeKernelType >
 __device__
-__forceinline__ void GvSamplerKernel< VolumeTreeKernelType >::moveSampleOffsetInNodeTree( const float3 offsetTree )
+__forceinline__ void GvSamplerKernel< TVolumeTreeKernelType >::moveSampleOffsetInNodeTree( const float3 offsetTree )
 {
 	_sampleOffsetInNodeTree = _sampleOffsetInNodeTree + offsetTree;
 }
@@ -93,15 +93,15 @@ __forceinline__ void GvSamplerKernel< VolumeTreeKernelType >::moveSampleOffsetIn
  *
  * @return It returns false if coneAperture > voxelSize in parent brick
  ******************************************************************************/
-template< typename VolumeTreeKernelType >
+template< typename TVolumeTreeKernelType >
 __device__
-__forceinline__ bool GvSamplerKernel< VolumeTreeKernelType >::updateMipMapParameters( const float pConeAperture )
+__forceinline__ bool GvSamplerKernel< TVolumeTreeKernelType >::updateMipMapParameters( const float pConeAperture )
 {
 	_mipMapInterpCoef = 0.0f;
 
 	if ( _mipMapOn )
 	{
-		_mipMapInterpCoef = getMipMapInterpCoef< VolumeTreeKernelType::NodeResolution, VolumeTreeKernelType::BrickResolution >( pConeAperture, _nodeSizeTree );
+		_mipMapInterpCoef = getMipMapInterpCoef< TVolumeTreeKernelType::NodeResolution, TVolumeTreeKernelType::BrickResolution >( pConeAperture, _nodeSizeTree );
 		if ( _mipMapInterpCoef > 1.0f )
 		{
 			return false;

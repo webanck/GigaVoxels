@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -68,6 +68,8 @@ class Producer;
 
 // Custom Shader
 class ShaderKernel;
+// Custom shadows Shader
+class ShadowRayShaderKernel;
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -81,10 +83,10 @@ typedef Loki::TL::MakeTypelist< uchar4 >::Result DataType;
 #endif
 
 // Defines the size of a node tile
-typedef GvCore::StaticRes1D< 2 > NodeRes;
+typedef GvCore::StaticRes1D<2> NodeRes;
 
 // Defines the size of a brick
-typedef GvCore::StaticRes1D< 8 > BrickRes;
+typedef GvCore::StaticRes1D<8> BrickRes;
 
 // Defines the type of structure we want to use
 typedef GvStructure::GvVolumeTree
@@ -104,6 +106,12 @@ typedef GvUtils::GvSimpleHostShader
 	ShaderKernel
 >
 ShaderType;
+//The shadows shader.
+typedef GvUtils::GvSimpleHostShader
+<
+	ShadowRayShaderKernel
+>
+ShadowsShaderType;
 
 // Define the type of renderer
 typedef GvRendering::GvRendererCUDA< DataStructureType, DataProductionManagerType, ShaderType > RendererType;
@@ -122,7 +130,7 @@ PipelineType;
  ****************************** CLASS DEFINITION ******************************
  ******************************************************************************/
 
-/** 
+/**
  * @class SampleCore
  *
  * @brief The SampleCore class provides a helper class containing a	GigaVoxels pipeline.
@@ -173,7 +181,7 @@ public:
 	// * @return the type name of this browsable
 	// */
 	//virtual const char* getTypeName() const;
-		
+
 	/**
      * Gets the name of this browsable
      *
@@ -243,14 +251,14 @@ public:
 	 * @param pZ the Z brick resolution
 	 */
 	virtual void getDataStructureBrickResolution( unsigned int& pX, unsigned int& pY, unsigned int& pZ ) const;
-	
+
 	/**
 	 * Get the max depth.
 	 *
 	 * @return the max depth
 	 */
 	virtual unsigned int getRendererMaxDepth() const;
-	
+
 	/**
 	 * Set the max depth.
 	 *
@@ -278,14 +286,14 @@ public:
 	 * @return the max number of requests
 	 */
 	virtual unsigned int getCacheMaxNbBrickLoads() const;
-	
+
 	/**
 	 * Set the max number of requests of brick of voxel loads.
 	 *
 	 * @param pValue the max number of requests
 	 */
 	virtual void setCacheMaxNbBrickLoads( unsigned int pValue );
-	
+
 	/**
 	 * Set the request strategy indicating if, during data structure traversal,
 	 * priority of requests is set on brick loads or on node subdivisions first.
@@ -379,22 +387,22 @@ public:
 	virtual bool hasLight() const;
 
 	/**
-	 * Get the light position
+	 * Get the light position in the scene referential.
 	 *
-	 * @param pX the X light position
-	 * @param pY the Y light position
-	 * @param pZ the Z light position
+	 * @param pX the X light position.
+	 * @param pY the Y light position.
+	 * @param pZ the Z light position.
 	 */
-	virtual void getLightPosition( float& pX, float& pY, float& pZ ) const;
+	virtual void getLightPosition(float& pX, float& pY, float& pZ) const;
 
 	/**
-	 * Set the light position
+	 * Set the pipeline and OpenGL light position.
 	 *
-	 * @param pX the X light position
-	 * @param pY the Y light position
-	 * @param pZ the Z light position
+	 * @param pX the X light position in the scene referential.
+	 * @param pY the Y light position in the scene referential.
+	 * @param pZ the Z light position in the scene referential.
 	 */
-	virtual void setLightPosition( float pX, float pY, float pZ );
+	virtual void setLightPosition(float pX, float pY, float pZ);
 
 	/**
 	 * Tell wheter or not the pipeline has a 3D model to load.
@@ -455,7 +463,7 @@ protected:
 	float _scale;
 
 	/**
-	 * Light position
+	 * Light position in the scene referential.
 	 */
 	float3 _lightPosition;
 

@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -49,7 +49,7 @@ namespace GvRendering
  * Shading is done with cone-tracing (LOD is selected by comparing cone aperture versus voxel size).
  *
  * @param pVolumeTree data structure
- * @param pSampleShader shader 
+ * @param pSampleShader shader
  * @param pGpuCache cache (not used for the moment...)
  * @param pRayStartTree camera position in Tree coordinate system
  * @param pRayDirTree ray direction in Tree coordinate system
@@ -60,13 +60,25 @@ namespace GvRendering
  *
  * @return the distance where ray-marching has stopped
  ******************************************************************************/
-template< bool TFastUpdateMode, bool TPriorityOnBrick, class TVolumeTreeKernelType, class TSampleShaderType, class TGPUCacheType >
+template <
+	bool TFastUpdateMode,
+	bool TPriorityOnBrick,
+	class TVolumeTreeKernelType,
+	class TSampleShaderType,
+	class TGPUCacheType
+>
 __device__
-float GvBrickVisitorKernel
-::visit( TVolumeTreeKernelType& pVolumeTree, TSampleShaderType& pSampleShader,
-		 TGPUCacheType& pGpuCache, const float3 pRayStartTree, const float3 pRayDirTree, const float pTTree,
-		 const float pRayLengthInNodeTree, GvSamplerKernel< TVolumeTreeKernelType >& pBrickSampler, bool& pModifInfoWriten )
-{
+float GvBrickVisitorKernel::visit(
+	TVolumeTreeKernelType& pVolumeTree,
+	TSampleShaderType& pSampleShader,
+	TGPUCacheType& pGpuCache,
+	const float3 pRayStartTree,
+	const float3 pRayDirTree,
+	const float pTTree,
+	const float pRayLengthInNodeTree,
+	GvSamplerKernel<TVolumeTreeKernelType>& pBrickSampler,
+	bool& pModifInfoWriten
+) {
 	// Current position in tree space
 	float3 samplePosTree = pRayStartTree + pTTree * pRayDirTree;
 
@@ -84,26 +96,26 @@ float GvBrickVisitorKernel
 
 		// Get the cone aperture at the given distance
 		float coneAperture = pSampleShader.getConeAperture( fullT );
-		
+
 		// Update sampler mipmap parameters
 		if ( ! pBrickSampler.updateMipMapParameters( coneAperture ) )
 		{
 			break;
 		}
-		
+
 		// Move sampler position
 		pBrickSampler.moveSampleOffsetInNodeTree( rayStep * pRayDirTree );
-		
+
 		// Update position
 		samplePosTree = pRayStartTree + fullT * pRayDirTree;
-		
+
 		// Compute next step
 		//
 		// TO DO : check if coneAperture, based on radial distance to camera, could not generate spherical pattern
 		rayStep = max( coneAperture, pBrickSampler._nodeSizeTree * ( 0.66f / static_cast< float>( TVolumeTreeKernelType::BrickResolution::x ) ) );
-		
+
 		// Shading (+ adaptative step)
-		pSampleShader.run( pBrickSampler, samplePosTree, pRayDirTree, rayStep, coneAperture );
+		pSampleShader.run( pBrickSampler, pGpuCache, pModifInfoWriten, samplePosTree, pRayDirTree, rayStep, coneAperture );
 
 		// Update local distance
 		dt += rayStep;

@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -56,7 +56,7 @@
 namespace GvRendering
 {
 
-	/** 
+	/**
 	 * @class GvIRenderShader
 	 *
 	 * @brief The GvIRenderShader class provides the main interface for shading the data structure.
@@ -145,15 +145,24 @@ namespace GvRendering
 		 * should be done here.
 		 *
 		 * @param pBrickSampler brick sampler
+		 * @param pGpuCache The GPU cache required to access volume tree data.
+		 * @param pRequestEmitted A boolean to set to true if a cache request has been done.
 		 * @param pSamplePosScene position of the sample in the scene
 		 * @param pRayDir ray direction
 		 * @param pRayStep ray step
 		 * @param pConeAperture cone aperture
 		 */
-		template< typename TSamplerType >
+		template <typename TSamplerType, class TGPUCacheType>
 		__device__
-		inline void run( const TSamplerType& pBrickSampler, const float3 pSamplePosScene,
-						const float3 pRayDir, float& pRayStep, const float pConeAperture );
+		inline void run(
+			const TSamplerType& pBrickSampler,
+			TGPUCacheType& pGpuCache,
+			bool& pRequestEmitted,
+			const float3 pSamplePosScene,
+			const float3 pRayDir,
+			float& pRayStep,
+			const float pConeAperture
+		);
 
 		/**************************************************************************
 		 **************************** PROTECTED SECTION ***************************
