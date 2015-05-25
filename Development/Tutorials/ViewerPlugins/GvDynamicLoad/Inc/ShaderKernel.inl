@@ -40,6 +40,8 @@
  ****************************** INLINE DEFINITION *****************************
  ******************************************************************************/
 
+#define ALPHA_MULTIPLIER 100.f
+
 /******************************************************************************
  ****************************** KERNEL DEFINITION *****************************
  ******************************************************************************/
@@ -69,9 +71,10 @@ inline float3 ShaderKernel::shadePointLight(
 		float specular = __powf( max( dot( normalVec, halfVec ), 0.0f ), 64.0f );
 
 		//Specular
-		//final_color += make_float3(specular)*specularTerm;
+		final_color += make_float3(specular)*specularTerm;
 	}
 
+	// return clamp(final_color, 0.f, 1.f);
 	return final_color;
 }
 
@@ -99,43 +102,53 @@ inline void ShaderKernel::runImpl(
 		//Process only data with non null normal.
 		if(length(normal3) > 0.f) {
 			const float3 normalVec 	= normalize(normal3);
-			// const float3 color 		= make_float3(pSamplePosScene.x, pSamplePosScene.y, pSamplePosScene.z);
 			const float3 color 		= make_float3(material_color.x, material_color.y, material_color.z);
 			const float3 lightVec 	= normalize(cLightPositionTree - pSamplePosScene);
 			const float3 viewVec 	= -1.f * pRayDir;
 			const float3 ambient	= make_float3(0.2f);
 			const float3 diffuse	= make_float3(1.f);
 			const float3 specular	= make_float3(0.9f);
+			const float voxelSize 	= pBrickSampler._nodeSizeTree/BrickRes::getFloat3().x;
 
 
-			// //Shadows.
-			// const float light_intensity = (
-			// 	//DEBUG: test sur 1 octant seulement
-			// 	/*pSamplePosScene.x > 0.f && pSamplePosScene.y < 0.5f && pSamplePosScene.z > 0.5f*/ true ?
-			// 	marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture) :
-			// 	1.f
-			// );
+			//Shadows.
+			const float4 light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
 			// //Common shading.
-			// const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular) * light_intensity;
+			const float3 shaded_color = shadePointLight(color, normalVec, lightVec, viewVec, ambient, diffuse, specular);
+
+
 			// // -- [ Opacity correction ] --
 			// // The standard equation :
 			// //		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
 			// // must take alpha correction into account
 			// // NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
 			// const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * 512.f));//pourquoi 512??
+			const float alpha_correction = voxelSize * ALPHA_MULTIPLIER;
 			// const float3 corrected_color = shaded_color / alpha * alpha_correction;
 			// _accColor.x += corrected_color.x;
 			// _accColor.y += corrected_color.y;
 			// _accColor.z += corrected_color.z;
-			// // _accColor.w += alpha_correction;
+			// _accColor.w += alpha_correction;
+			// // _accColor.w = 1.f; //mat objects
+
+			// const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
+
+			//1) Shadows only.
+			// _accColor.x += color.x / alpha * alpha_correction * light_intensity.x * light_intensity.w;
+			// _accColor.y += color.y / alpha * alpha_correction * light_intensity.y * light_intensity.w;
+			// _accColor.z += color.z / alpha * alpha_correction * light_intensity.z * light_intensity.w;
+			// _accColor.w += alpha_correction;
+
+			// //2) Shaded and shadowed.
+			_accColor.x += shaded_color.x / alpha * alpha_correction * light_intensity.x * light_intensity.w;
+			_accColor.y += shaded_color.y / alpha * alpha_correction * light_intensity.y * light_intensity.w;
+			_accColor.z += shaded_color.z / alpha * alpha_correction * light_intensity.z * light_intensity.w;
+			_accColor.w += alpha_correction;
+
 			// _accColor.w = 1.f; //mat objects
 
-			//Shadows only.
-			const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
-			_accColor = make_float4(light_intensity, light_intensity, light_intensity, 1.f);
 
-
-			//Printing only normals.
+			// // Printing only normals.
 			// if(length(normalVec) > 0) {
 			// 	const float3 normalized = normalize(normalVec);
 			// 	_accColor = make_float4(
@@ -159,6 +172,15 @@ inline void ShaderKernel::runImpl(
 			// 	(lightVec.x + 1.f)/2.f,
 			// 	(lightVec.y + 1.f)/2.f,
 			// 	(lightVec.z + 1.f)/2.f,
+			// 	1.f
+			// );
+
+
+			// //Printing only view direction.
+			// _accColor = make_float4(
+			// 	(viewVec.x + 1.f)/2.f,
+			// 	(viewVec.y + 1.f)/2.f,
+			// 	(viewVec.z + 1.f)/2.f,
 			// 	1.f
 			// );
 
@@ -192,7 +214,7 @@ inline void ShaderKernel::runImpl(
 
 template <typename TSamplerType, class TGPUCacheType>
 __device__
-float ShaderKernel::marchShadowRay(
+float4 ShaderKernel::marchShadowRay(
 	const TSamplerType& pBrickSampler,
 	TGPUCacheType& pGpuCache,
 	bool& pRequestEmitted,
@@ -206,18 +228,20 @@ float ShaderKernel::marchShadowRay(
 	const float3 lightVec 			= cLightPositionTree - firstSamplePosTree;
 	const float3 lightDirection 	= normalize(lightVec);
 	const float lightDistance 		= length(lightVec); //TODO: consider only the distance to the light which is actually INSIDE the voxels geometry (the remaining distance is empty).
-	const float lightDiameter		= 0.f; //a parameter to be: light tweaking if not point light
-	float coneAperture 				= 1.33f * pBrickSampler._nodeSizeTree;
-	const float starting_marched_length = 2.f * firstSampleDiameter;
+	const float lightDiameter		= 0.0001f; //a parameter to be: light tweaking if not point light
+	// float coneAperture 			= 1.33f * pBrickSampler._nodeSizeTree;
+	float coneAperture 				= 1.33f * firstSampleDiameter;
+	// const float starting_marched_length = 2.f * firstSampleDiameter;
+	const float starting_marched_length = coneAperture;
 
 
 
 	float marched_length = starting_marched_length;
 	ShadowRayShaderKernel shader(lightDistance, lightDiameter, firstSampleDiameter); // The shader used for shadow ray marching.
 	float3 samplePosTree = firstSamplePosTree + lightDirection * marched_length;
-	const uint maxLoops = 1000;
+	const uint maxLoops = 100;
 	uint i = 0;
-	//Ray/cone marching from the first sample to the light and accumulating alpha in the shader.
+	//Ray/cone marching from just after the first sample to the light and accumulating alpha in the shader.
 	while(marched_length < lightDistance && !shader.stopCriterionImpl(samplePosTree) && i++ < maxLoops) {
 		//Position of the next sample will give the node and offset in it's brick.
 		float3 samplePosTree = firstSamplePosTree + lightDirection * marched_length;
@@ -318,7 +342,12 @@ float ShaderKernel::marchShadowRay(
 	// 	1.f
 	// );
 
-	return (shader.getColor().w < 1.f ? 1.f - shader.getColor().w : 0.f);
+	return make_float4(
+		1.f - shader.getColor().x,
+		1.f - shader.getColor().y,
+		1.f - shader.getColor().z,
+		1.f - shader.getColor().w
+	);
 }
 
 
@@ -333,6 +362,8 @@ ShadowRayShaderKernel::ShadowRayShaderKernel(/*const float3 pLightPosition, */co
 	_lightSize(pLightSize),
 	_sampleSize(pSampleSize)
 {
+	_accColor = make_float4(0.f);
+	// _accColor.w = -1.f;
 }
 
 template <typename TSamplerType, class TGPUCacheType>
@@ -349,15 +380,39 @@ inline void ShadowRayShaderKernel::runImpl(
 	//Retrieve material color from voxel's attached data.
 	const float4 material_color = pBrickSampler.template getValue<0>(pConeAperture);
 	const float alpha = material_color.w;
+	const float voxelSize = pBrickSampler._nodeSizeTree/BrickRes::getFloat3().x;
+
+	const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * 512.f));//pourquoi 512??
 
 	//Process only visible voxels.
 	if(alpha > 0.f) {
 		//Smooth shadows.
-		// _accColor.w += (1.f - _accColor.w) * alpha * pBrickSampler._nodeSizeTree/BrickRes::getFloat3().x;
-		_accColor.w += alpha;
+		// _accColor.w += (1.f - _accColor.w) * alpha * voxelSize;
 
-		// //Hard shadows.
-		// _accColor.w = 1.f;
+		//Accumulating the color absorbtion in RGB components, accounting for the alpha.
+
+		// //1) The integration ins't linear so not the same regarding the voxelSize.
+		// _accColor.x += (1.f - _accColor.x) * (1.f - material_color.x) * alpha * voxelSize;
+		// _accColor.y += (1.f - _accColor.y) * (1.f - material_color.y) * alpha * voxelSize;
+		// _accColor.z += (1.f - _accColor.z) * (1.f - material_color.z) * alpha * voxelSize;
+		// // _accColor.w += (1.f - _accColor.w) * alpha * voxelSize;
+		// _accColor.w += alpha * voxelSize;
+
+		//2) It should be better here but transparent effects observed, because of thin shell?
+		_accColor.x += (1.f - material_color.x) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		_accColor.y += (1.f - material_color.y) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		_accColor.z += (1.f - material_color.z) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		_accColor.w += alpha * voxelSize;
+
+		// //3) Transparent effects observed too but not so similar appearance between different levels of details.
+		// _accColor.x += (1.f - material_color.x) / alpha * alpha_correction * voxelSize;
+		// _accColor.y += (1.f - material_color.y) / alpha * alpha_correction * voxelSize;
+		// _accColor.z += (1.f - material_color.z) / alpha * alpha_correction * voxelSize;
+		// _accColor.w += alpha_correction * voxelSize;
+
+
+		//Avoid out of range values for next occurences.
+		clamp(_accColor, 0.f, 1.f);
 	}
 }
 

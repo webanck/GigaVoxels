@@ -144,7 +144,7 @@ public:
 	*/
 	template <typename TSamplerType, class TGPUCacheType>
 	__device__
-	float marchShadowRay(
+	float4 marchShadowRay(
 		const TSamplerType& pBrickSampler,
 		TGPUCacheType& pGpuCache,
 		bool& pRequestEmitted,
