@@ -124,26 +124,26 @@ inline void ShaderKernel::runImpl(
 			// // NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
 			const float alpha_correction = (1.f - _accColor.w) * (1.f - __powf(1.f - alpha, pRayStep * cShaderMaterialProperty));
 			// const float alpha_correction = voxelSize * ALPHA_MULTIPLIER;
-			// const float3 corrected_color = shaded_color / alpha * alpha_correction;
-			// _accColor.x += corrected_color.x;
-			// _accColor.y += corrected_color.y;
-			// _accColor.z += corrected_color.z;
-			// _accColor.w += alpha_correction;
 			// // _accColor.w = 1.f; //mat objects
 
-			// const float light_intensity = marchShadowRay(pBrickSampler, pGpuCache, pRequestEmitted, pSamplePosScene, pConeAperture);
+			//0)Original.
+			const float3 corrected_color = shaded_color / alpha * alpha_correction;
+			_accColor.x += corrected_color.x;
+			_accColor.y += corrected_color.y;
+			_accColor.z += corrected_color.z;
+			_accColor.w += alpha_correction;
 
-			//1) Shadows only.
+			// // 1) Shadows only.
 			// _accColor.x += color.x / alpha * alpha_correction * light_intensity.x * light_intensity.w;
 			// _accColor.y += color.y / alpha * alpha_correction * light_intensity.y * light_intensity.w;
 			// _accColor.z += color.z / alpha * alpha_correction * light_intensity.z * light_intensity.w;
 			// _accColor.w += alpha_correction;
 
 			// //2) Shaded and shadowed.
-			_accColor.x += shaded_color.x / alpha * alpha_correction * light_intensity.x * light_intensity.w;
-			_accColor.y += shaded_color.y / alpha * alpha_correction * light_intensity.y * light_intensity.w;
-			_accColor.z += shaded_color.z / alpha * alpha_correction * light_intensity.z * light_intensity.w;
-			_accColor.w += alpha_correction;
+			// _accColor.x += shaded_color.x / alpha * alpha_correction * light_intensity.x * light_intensity.w;
+			// _accColor.y += shaded_color.y / alpha * alpha_correction * light_intensity.y * light_intensity.w;
+			// _accColor.z += shaded_color.z / alpha * alpha_correction * light_intensity.z * light_intensity.w;
+			// _accColor.w += alpha_correction;
 
 			// _accColor.w = 1.f; //mat objects
 
@@ -208,49 +208,13 @@ inline void ShaderKernel::runImpl(
 			// 	1.f
 			// );
 
+			//debug
+			// _accColor = make_float4(normal3, 1.f);
+
 		}
 	}
 }
 
-
-
-
-// 	// Retrieve first channel element : color
-// 	float4 color = brickSampler.template getValue< 0 >( coneAperture );
-//
-// 	// Test opacity
-// 	if ( color.w > 0.0f )
-// 	{
-// 		// Retrieve second channel element : normal
-// 		const float4 normal = pBrickSampler.template getValue< 1 >( coneAperture );
-//
-// 		// Lambertian lighting
-// 		const float3 normalVec = normalize( make_float3( normal.x, normal.y, normal.z ) );
-// 		const float3 lightVec = normalize( cLightPosition ); // could be normalized on HOST
-// 		const float3 rgb = make_float3( color.x, color.y, color.z ) * max( 0.0f, dot( normalVec, lightVec ) );
-//
-// 		// Due to alpha pre-multiplication
-// 		//
-// 		// Note : inspecting device SASS code, assembly langage seemed to compute (1.f / color.w) each time, that's why we use a constant and multiply
-// 		const float alphaPremultiplyConstant = 1.f / color.w;
-// 		color.x = rgb.x * alphaPremultiplyConstant;
-// 		color.y = rgb.y * alphaPremultiplyConstant;
-// 		color.z = rgb.z * alphaPremultiplyConstant;
-//
-// 		// -- [ Opacity correction ] --
-// 		// The standard equation :
-// 		//		_accColor = _accColor + ( 1.0f - _accColor.w ) * color;
-// 		// must take alpha correction into account
-// 		// NOTE : if ( color.w == 0 ) then alphaCorrection equals 0.f
-// 		const float alphaCorrection = ( 1.0f -_accColor.w ) * ( 1.0f - __powf( 1.0f - color.w, rayStep * cShaderMaterialProperty ) );
-//
-// 		// Accumulate the color
-// 		_accColor.x += alphaCorrection * color.x;
-// 		_accColor.y += alphaCorrection * color.y;
-// 		_accColor.z += alphaCorrection * color.z;
-// 		_accColor.w += alphaCorrection;
-// 	}
-// }
 
 template <typename TSamplerType, class TGPUCacheType>
 __device__
@@ -313,7 +277,7 @@ float4 ShaderKernel::marchShadowRay(
 		const float rayLengthInNodeTree = GvRendering::getRayLengthInNode(sampleOffsetInNodeTree, sampleDiameter, lightDirection);
 
 		//Different cases regarding the retrieved node: with a brick or not.
-		if(!node.isBrick() || node.isTerminal() || !node.hasSubNodes()) {
+		if(!node.isBrick() /*|| node.isTerminal() || !node.hasSubNodes()*/) {
 			marched_length += rayLengthInNodeTree;
 			marched_length += shader.getConeApertureImpl(marched_length);
 		} else {
@@ -438,17 +402,23 @@ inline void ShadowRayShaderKernel::runImpl(
 		// // _accColor.w += (1.f - _accColor.w) * alpha * voxelSize;
 		// _accColor.w += alpha * voxelSize;
 
-		//2) It should be better here but transparent effects observed, because of thin shell?
-		_accColor.x += (1.f - material_color.x) * alpha * voxelSize * ALPHA_MULTIPLIER;
-		_accColor.y += (1.f - material_color.y) * alpha * voxelSize * ALPHA_MULTIPLIER;
-		_accColor.z += (1.f - material_color.z) * alpha * voxelSize * ALPHA_MULTIPLIER;
-		_accColor.w += alpha * voxelSize;
+		// //2) It should be better here but transparent effects observed, because of thin shell?
+		// _accColor.x += (1.f - material_color.x) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		// _accColor.y += (1.f - material_color.y) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		// _accColor.z += (1.f - material_color.z) * alpha * voxelSize * ALPHA_MULTIPLIER;
+		// _accColor.w += alpha * voxelSize;
 
 		// //3) Transparent effects observed too but not so similar appearance between different levels of details.
 		// _accColor.x += (1.f - material_color.x) / alpha * alpha_correction * voxelSize;
 		// _accColor.y += (1.f - material_color.y) / alpha * alpha_correction * voxelSize;
 		// _accColor.z += (1.f - material_color.z) / alpha * alpha_correction * voxelSize;
 		// _accColor.w += alpha_correction * voxelSize;
+
+		//4)
+		_accColor.x += (1.f - material_color.x) / alpha * alpha_correction;
+		_accColor.y += (1.f - material_color.y) / alpha * alpha_correction;
+		_accColor.z += (1.f - material_color.z) / alpha * alpha_correction;
+		_accColor.w += alpha_correction;
 
 
 		//Avoid out of range values for next occurences.

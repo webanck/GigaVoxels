@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -51,7 +51,7 @@
  * Shape opacity
  */
 __constant__ float3 cShapeColor;
-	
+
 /**
  * Shape opacity
  */
@@ -69,7 +69,7 @@ __constant__ float cShapeOpacity;
  ****************************** CLASS DEFINITION ******************************
  ******************************************************************************/
 
-/** 
+/**
  * @class ProducerKernel
  *
  * @brief The ProducerKernel class provides the mecanisms to produce data
@@ -136,7 +136,7 @@ public:
 
 	/**
 	 * Initialize the producer
-	 * 
+	 *
 	 * @param volumeTreeKernel Reference on a volume tree data structure
 	 */
 	inline void initialize( DataStructureKernel& pDataStructure );
@@ -239,14 +239,43 @@ private:
 	inline GPUVoxelProducer::GPUVPRegionInfo getRegionInfo( uint3 regionCoords, uint regionDepth );
 
 	/**
-	 * Helper class to test if a point is inside the unit sphere centered in [0,0,0]
+	 * Helper function to test if a point is inside the unit sphere centered in [0,0,0].
 	 *
-	 * @param pPoint the point to test
+	 * @param pPoint The point to test.
 	 *
-	 * @return flag to tell wheter or not the point is insied the sphere
+	 * @return Wheter the point is insied the sphere.
 	 */
 	__device__
-	static inline bool isInSphere( const float3 pPoint );
+	static inline bool isInSphere(const float3 pPoint);
+
+	/**
+	 * Helper function to test if a point is inside the unit cube centered in [0,0,0].
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return Wheter the point is insied the cube.
+	 */
+	__device__
+	static inline bool isInCube(const float3 pPoint);
+
+	/**
+	 * Helper function to test if a point is inside a cylinder.
+	 *
+	 * @param pPoint The point to test.
+	 * @param pCenter1 The center of the first base of the cylinder.
+	 * @param pCenter2 The center of the second base of the cylinder.
+	 * @param pRadius The radius of the cylinder.
+	 *
+	 * @return Wheter the point is insied the cylinder.
+	 */
+	__device__
+	static inline bool isInCylinder(const float3 pPoint, const float3 pCenter1, const float3 pCenter2, const float pRadius);
+	__device__
+	static inline bool isInCylinder(const float3 pPoint);
+	__device__
+	static inline float3 cylinderNormal(const float3 pPoint, const float3 pCenter1, const float3 pCenter2, const float pRadius);
+	__device__
+	static inline float3 cylinderNormal(const float3 pPoint);
 
 };
 

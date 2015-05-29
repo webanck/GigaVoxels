@@ -241,24 +241,29 @@ inline uint ProducerKernel< TDataStructureType >
 
 	   float4 voxelColor = make_float4( cShapeColor.x, cShapeColor.y, cShapeColor.z, 0.0f );
 
-		//float4 voxelNormal = make_float4( normalize( posF ), 1.0f );
-	   float m;//	= max(fabsf(posF.x), fabsf(posF.y), fabsf(posF.z));
-		if(fabsf(posF.x) >= fabsf(posF.y) && fabsf(posF.x) >= fabsf(posF.z))
-			m = fabsf(posF.x);
-		else if(fabsf(posF.y) >= fabsf(posF.x) && fabsf(posF.y) >= fabsf(posF.z))
-			m = fabsf(posF.y);
-		else
-			m = fabsf(posF.z);
+		// //for the sphere
+		// float4 voxelNormal = make_float4( normalize( posF ), 1.0f );
 
-	   float4 voxelNormal = make_float4( normalize(make_float3(
-			((float)(powf(-1.f, posF.x < 0.0f) * posF.x == m)),
-			((float)(powf(-1.f, posF.y < 0.0f) * posF.y == m)),
-			((float)(powf(-1.f, posF.z < 0.0f) * posF.z == m)))),
-			1.0f
-	   );
+		// //for the cube
+		// float m;//	= max(fabsf(posF.x), fabsf(posF.y), fabsf(posF.z));
+		// if(fabsf(posF.x) >= fabsf(posF.y) && fabsf(posF.x) >= fabsf(posF.z))
+		// 	m = fabsf(posF.x);
+		// else if(fabsf(posF.y) >= fabsf(posF.x) && fabsf(posF.y) >= fabsf(posF.z))
+		// 	m = fabsf(posF.y);
+		// else
+		// 	m = fabsf(posF.z);
+		// float4 voxelNormal = make_float4( normalize(make_float3(
+		// 	((float)(powf(-1.f, posF.x < 0.0f) * posF.x == m)),
+		// 	((float)(powf(-1.f, posF.y < 0.0f) * posF.y == m)),
+		// 	((float)(powf(-1.f, posF.z < 0.0f) * posF.z == m)))),
+		// 	1.0f
+		// );
 
-	   // Test if the voxel is located inside the unit sphere
-	   if ( isInSphere( posF ) )
+		//for the cylinder
+		const float4 voxelNormal = make_float4(cylinderNormal(posF), 1.f);
+
+	   // Test if the voxel is located inside the unit cube.
+	   if ( isInCylinder( posF ) )
 	   {
 		   voxelColor.w = cShapeOpacity;
 	   }
@@ -319,7 +324,7 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// Since we work in the range [-1;1] below, the brick size is two time bigger
 	brickSize = make_float3( 1.f ) / make_float3( 1 << regionDepth ) * 2.f;
 
-	// Build the eight brick corners of a sphere centered in [0;0;0]
+	// Build the eight brick corners of a cube centered in [0;0;0]
 	float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
 	float3 q001 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z);
 	float3 q010 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z);
@@ -329,29 +334,141 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	float3 q110 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z + brickSize.z);
 	float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
 
-	// Test if any of the eight brick corner lies in the sphere
-	// if ( isInSphere( q000 ) || isInSphere( q001 ) || isInSphere( q010 ) || isInSphere( q011 ) ||
-	// 	isInSphere( q100 ) || isInSphere( q101 ) || isInSphere( q110 ) || isInSphere( q111 ) )
-	if ( (isInSphere( q000 ) && isInSphere( q001 ) && isInSphere( q010 ) && isInSphere( q011 ) &&
-		isInSphere( q100 ) && isInSphere( q101 ) && isInSphere( q110 ) && isInSphere( q111 ))
-	) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	else if(!(isInSphere( q000 ) && isInSphere( q001 ) && isInSphere( q010 ) && isInSphere( q011 ) &&
-			isInSphere( q100 ) && isInSphere( q101 ) && isInSphere( q110 ) && isInSphere( q111 ))
-	) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	else return GPUVoxelProducer::GPUVP_DATA;
+	// Test if any of the eight brick corner lies in the cube
+	// if ( (isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
+	// 	isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+	// else if(!(isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
+	// 		isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+	// else return GPUVoxelProducer::GPUVP_DATA;
+
+	if ( isInCylinder( q000 ) || isInCylinder( q001 ) || isInCylinder( q010 ) || isInCylinder( q011 ) ||
+		isInCylinder( q100 ) || isInCylinder( q101 ) || isInCylinder( q110 ) || isInCylinder( q111 ) )
+	{
+		return GPUVoxelProducer::GPUVP_DATA;
+	}
+
+	return GPUVoxelProducer::GPUVP_CONSTANT;
 }
-/******************************************************************************
- * Helper class to test if a point is inside the unit sphere centered in [0,0,0]
- *
- * @param pPoint the point to test
- *
- * @return flag to tell wheter or not the point is insied the sphere
- ******************************************************************************/
+
+
 template< typename TDataStructureType >
 __device__
 inline bool ProducerKernel< TDataStructureType >::isInSphere( const float3 pPoint )
 {
 	// return ( fabsf( p.x ) <= 0.5f && fabsf( p.y ) <= 0.5f && fabsf( p.z ) <= 0.5f );
+
+	return ( length( pPoint ) < 1.f );
+}
+
+
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInCube(const float3 pPoint) {
 	return pPoint.x < 1.f && pPoint.y < 1.f && pPoint.z < 1.f;
-	//return ( length( pPoint ) < 1.f );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+* Helper function to test if a point is inside a cylinder.
+*
+* @param pPoint The point to test.
+* @param pCenter1 The center of the first base of the cylinder.
+* @param pCenter2 The center of the second base of the cylinder.
+* @param pRadius The radius of the cylinder.
+*
+* @return Wheter the point is insied the cylinder.
+*/
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInCylinder(
+	const float3 pPoint,
+	const float3 pCenter1,
+	const float3 pCenter2,
+	const float pRadius
+) {
+	//A point is in the cylinder if it's projection on the cylinder's axis is between the two bases and the distance between the point to it's projection is lower than the cylinder's radius.
+	const float3 baseToBase 		= pCenter2 - pCenter1;
+	const float height 				= length(baseToBase);
+	const float3 axis 				= normalize(baseToBase);
+	const float3 baseToPoint 		= pPoint - pCenter1;
+	const float scalar 				= dot(baseToPoint, axis);
+	const float3 projected 			= pCenter1 + axis * scalar;
+	const float3 projectedToPoint 	= pPoint - projected;
+
+	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= pRadius;
+}
+
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
+	return isInCylinder(
+		pPoint,
+		make_float3(-0.5f),
+		make_float3(0.5f),
+		0.2f
+	);
+}
+
+template <typename TDataStructureType>
+__device__
+inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(
+	const float3 pPoint,
+	const float3 pCenter1,
+	const float3 pCenter2,
+	const float pRadius
+) {
+	const float3 baseToBase 		= pCenter2 - pCenter1;
+	const float height 				= length(baseToBase);
+	const float3 axis 				= baseToBase/height;
+	const float3 baseToPoint 		= pPoint - pCenter1;
+	const float scalar 				= dot(baseToPoint, axis);
+
+	const float3 projected 			= pCenter1 + axis * scalar;
+	const float3 projectedToPoint 	= pPoint - projected;
+
+	// return make_float3(scalar/height);
+	// return pPoint;
+	// return projected;
+	// return projectedToPoint;
+	// return make_float3(length(projectedToPoint)/pRadius);
+
+	const float epsilon = 0.01f;
+	const float heightRatio = scalar/height;
+
+	if(1.f - epsilon < heightRatio && heightRatio < 1.f + epsilon)
+		return normalize(baseToBase);
+	else if(0.f - epsilon < heightRatio && heightRatio < 0.f + epsilon)
+		return normalize(-1.f * baseToBase);
+	else
+		return normalize(projectedToPoint);
+
+	// if(length(projectedToPoint) >= pRadius)
+	// 	return normalize(projectedToPoint);
+	// else if(scalar/height > 0.5f)
+	// 	return normalize(baseToBase);
+	// else
+	// 	return normalize(-1.f * baseToBase);
+}
+
+template <typename TDataStructureType>
+__device__
+inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
+	return cylinderNormal(
+		pPoint,
+		make_float3(-0.5f),
+		make_float3(0.5f),
+		0.2f
+	);
 }
