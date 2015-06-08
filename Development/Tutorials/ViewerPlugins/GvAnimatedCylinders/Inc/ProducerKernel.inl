@@ -357,8 +357,6 @@ template< typename TDataStructureType >
 __device__
 inline bool ProducerKernel< TDataStructureType >::isInSphere( const float3 pPoint )
 {
-	// return ( fabsf( p.x ) <= 0.5f && fabsf( p.y ) <= 0.5f && fabsf( p.z ) <= 0.5f );
-
 	return ( length( pPoint ) < 1.f );
 }
 
@@ -380,16 +378,7 @@ inline bool ProducerKernel<TDataStructureType>::isInCube(const float3 pPoint) {
 
 
 
-/**
-* Helper function to test if a point is inside a cylinder.
-*
-* @param pPoint The point to test.
-* @param pCenter1 The center of the first base of the cylinder.
-* @param pCenter2 The center of the second base of the cylinder.
-* @param pRadius The radius of the cylinder.
-*
-* @return Wheter the point is insied the cylinder.
-*/
+
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(
@@ -401,7 +390,7 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(
 	//A point is in the cylinder if it's projection on the cylinder's axis is between the two bases and the distance between the point to it's projection is lower than the cylinder's radius.
 	const float3 baseToBase 		= pCenter2 - pCenter1;
 	const float height 				= length(baseToBase);
-	const float3 axis 				= normalize(baseToBase);
+	const float3 axis 				= baseToBase/height;
 	const float3 baseToPoint 		= pPoint - pCenter1;
 	const float scalar 				= dot(baseToPoint, axis);
 	const float3 projected 			= pCenter1 + axis * scalar;
@@ -413,11 +402,12 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
+	double v = 0.2f + ((double)(cElapsedSeconds%10U))/40.f;
 	return isInCylinder(
 		pPoint,
 		make_float3(-0.5f),
 		make_float3(0.5f),
-		0.2f
+		v //0.2f
 	);
 }
 
@@ -429,46 +419,34 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(
 	const float3 pCenter2,
 	const float pRadius
 ) {
+	//This function should be called knowing we are already on or in the cylinder.
 	const float3 baseToBase 		= pCenter2 - pCenter1;
 	const float height 				= length(baseToBase);
 	const float3 axis 				= baseToBase/height;
 	const float3 baseToPoint 		= pPoint - pCenter1;
 	const float scalar 				= dot(baseToPoint, axis);
-
 	const float3 projected 			= pCenter1 + axis * scalar;
 	const float3 projectedToPoint 	= pPoint - projected;
-
-	// return make_float3(scalar/height);
-	// return pPoint;
-	// return projected;
-	// return projectedToPoint;
-	// return make_float3(length(projectedToPoint)/pRadius);
 
 	const float epsilon = 0.01f;
 	const float heightRatio = scalar/height;
 
 	if(1.f - epsilon < heightRatio && heightRatio < 1.f + epsilon)
-		return normalize(baseToBase);
+		return axis;
 	else if(0.f - epsilon < heightRatio && heightRatio < 0.f + epsilon)
-		return normalize(-1.f * baseToBase);
+		return -1.f * axis;
 	else
 		return normalize(projectedToPoint);
-
-	// if(length(projectedToPoint) >= pRadius)
-	// 	return normalize(projectedToPoint);
-	// else if(scalar/height > 0.5f)
-	// 	return normalize(baseToBase);
-	// else
-	// 	return normalize(-1.f * baseToBase);
 }
 
 template <typename TDataStructureType>
 __device__
 inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
+	double v = 0.2f + ((double)(cElapsedSeconds%10U))/40.f;
 	return cylinderNormal(
 		pPoint,
 		make_float3(-0.5f),
 		make_float3(0.5f),
-		0.2f
+		v //0.2f
 	);
 }

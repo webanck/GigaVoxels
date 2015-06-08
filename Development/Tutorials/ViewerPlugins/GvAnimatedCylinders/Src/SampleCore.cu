@@ -287,6 +287,8 @@ void SampleCore::draw()
 	CUDAPM_START_EVENT( frame );
 	CUDAPM_START_EVENT( app_init_frame );
 
+	updateElapsedTime();
+
 	//glMatrixMode( GL_MODELVIEW );		// already done in the QLViewer::preDraw() method
 
 	// TO DO : optimization
@@ -1428,4 +1430,23 @@ std::string SampleCore::getShaderFilename( unsigned int pShaderType ) const
 bool SampleCore::reloadShader( unsigned int pShaderType )
 {
 	return _shaderProgram->reloadShader( static_cast< GsShaderProgram::ShaderType >( pShaderType ) );
+}
+
+
+void SampleCore::updateElapsedTime() {
+	static clock_t instant = clock();
+
+	clock_t newInstant = clock();
+	_elapsedMiliseconds += double(newInstant - instant)/CLOCKS_PER_SEC*1000.f;
+
+	_elapsedSeconds += _elapsedMiliseconds/1000U;
+	_elapsedMiliseconds %= 1000U;
+
+	// Update device memory
+	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cElapsedSeconds, &_elapsedSeconds, sizeof(_elapsedSeconds), 0, cudaMemcpyHostToDevice));
+	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cElapsedMiliseconds, &_elapsedMiliseconds, sizeof(_elapsedMiliseconds), 0, cudaMemcpyHostToDevice));
+
+	instant = newInstant;
+
+	// std::cout << _elapsedSeconds << " : " << _elapsedMiliseconds << std::endl;
 }

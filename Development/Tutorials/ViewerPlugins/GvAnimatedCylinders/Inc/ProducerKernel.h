@@ -57,6 +57,12 @@ __constant__ float3 cShapeColor;
  */
 __constant__ float cShapeOpacity;
 
+/**
+ * Elapsed time since the beginning of the programm.
+ */
+__constant__ uint cElapsedSeconds;
+__constant__ uint cElapsedMiliseconds;
+
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
  ******************************************************************************/

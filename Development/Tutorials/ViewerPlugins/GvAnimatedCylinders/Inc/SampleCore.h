@@ -738,6 +738,11 @@ public:
 	 */
 	virtual bool reloadShader( unsigned int pShaderType );
 
+	/**
+	 * Takes care of the time update and copy in the GPU memory for animation.
+	 */
+	virtual void updateElapsedTime();
+
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************
 	 **************************************************************************/
@@ -775,6 +780,13 @@ protected:
 	 * Shape opacity
 	 */
 	float _shapeOpacity;
+
+
+	/**
+	 * Elapsed time since the beginning of the programm.
+	 */
+	uint _elapsedSeconds;
+	uint _elapsedMiliseconds;
 
 	/**
 	 * Shader material property (according to opacity)
