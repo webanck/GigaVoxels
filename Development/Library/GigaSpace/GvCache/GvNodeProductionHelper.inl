@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -46,14 +46,19 @@ namespace GvCache
  * @param pElemAddressList The numElements addresses of the new elements.
  * @param pGpuPool The pool where we will write the produced elements.
  * @param pGpuProvider The provider called for the production.
- * @param pPageTable 
+ * @param pPageTable
  * @param pBlockSize The user defined blockSize used to launch the kernel.
  ******************************************************************************/
-template< typename ElementRes, typename GPUPoolType, typename GPUProviderType, typename PageTableType >
-inline void GvCacheHelper::genericWriteIntoCache( const uint pNumElements, uint* pNodesAddressList, uint* pElemAddressList,
-												  const GPUPoolType& pGpuPool, const GPUProviderType& pGpuProvider,
-												  const PageTableType& pPageTable, const dim3& pBlockSize )
-{
+template <typename ElementRes, typename GPUPoolType, typename GPUProviderType, typename PageTableType>
+inline void GvCacheHelper::genericWriteIntoCache(
+	const uint pNumElements,
+	uint *pNodesAddressList,
+	uint *pElemAddressList,
+	const GPUPoolType& pGpuPool,
+	const GPUProviderType& pGpuProvider,
+	const PageTableType& pPageTable,
+	const dim3& pBlockSize
+) {
 	// Define kernel grid size
 	dim3 gridSize( std::min( pNumElements, 65535U ), iDivUp( pNumElements, 65535U ), 1 );
 

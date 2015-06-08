@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -111,7 +111,7 @@ GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTableType 
 	uint pageTableResLinear = pageTableRes.x * pageTableRes.y * pageTableRes.z;
 
 	// Buffer of requests (masks of associated request in the current frame)
-	//_d_TempUpdateMaskList = GvCacheManagerResources::getTempUsageMask1( pageTableRes.x * pageTableRes.y  *pageTableRes.z ); 
+	//_d_TempUpdateMaskList = GvCacheManagerResources::getTempUsageMask1( pageTableRes.x * pageTableRes.y  *pageTableRes.z );
 	_d_TempUpdateMaskList = new thrust::device_vector< uint >( pageTableResLinear );
 	_d_UpdateCompactList = new thrust::device_vector< uint >( pageTableResLinear );
 
@@ -172,10 +172,10 @@ GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTableType 
 #if USE_CUDPP_LIBRARY
 
 	GV_CUDA_SAFE_CALL( cudaFree( _d_numElementsPtr ) );
-	
+
 	// TO DO
 	// Attention, il arrive que ce "plan" soir partager entre les deux caches de brick et de noeuds
-	// et lors de la destruction du 2ème cache manager, cela produit une erreur CUDPP.
+	// et lors de la destruction du 2ï¿½me cache manager, cela produit une erreur CUDPP.
 	// ...
 	// TO DO
 	// Move this in another place
@@ -308,7 +308,7 @@ thrust::device_vector< uint >* GvCacheManager< TId, ElementRes, AddressType, Pag
 //	/*GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(k_VTC_TimeStampArray,
 //		(&_d_TimeStampArray->getDeviceArray()),
 //		sizeof(_d_TimeStampArray->getDeviceArray()), 0, cudaMemcpyHostToDevice));*/
-//	
+//
 //	CUDAPM_STOP_EVENT(gpucachemgr_updateSymbols);
 //}
 
@@ -379,7 +379,7 @@ template< unsigned int TId, typename ElementRes, typename AddressType, typename 
 uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTableType >
 ::updateTimeStamps( bool manageUpdatesOnly )
 {
-	if ( true || this->_lastNumLoads > 0 )
+	if ( this->_lastNumLoads > 0 )
 	{
  		// uint numElemsNotUsed = 0;
 		_numElemsNotUsed = 0;
@@ -418,19 +418,20 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 			// This kernel creates the usage mask list of used and non-used elements (in current rendering pass) in a single pass
 			//
 			// Note : Generate an error with CUDA 3.2
-			CacheManagerFlagTimeStampsSP< ElementRes, AddressType >
-				<<< gridSize, blockSize, 0 >>>( /*in*/_d_cacheManagerKernel,
-						/*in*/nbElemToSort,
-						/*in*/thrust::raw_pointer_cast( &(*_d_elemAddressList)[ sortingStartPos ] ),
-						/*out*/thrust::raw_pointer_cast( &(*_d_TempMaskList)[ 0 ] )		/*resulting mask list of non-used elements*/,
-						/*out*/thrust::raw_pointer_cast( &(*_d_TempMaskList2)[ 0 ] )	/*resulting mask list of used elements*/ );
+			CacheManagerFlagTimeStampsSP <ElementRes, AddressType> <<< gridSize, blockSize, 0 >>> (
+					/*in*/_d_cacheManagerKernel,
+					/*in*/nbElemToSort,
+					/*in*/thrust::raw_pointer_cast( &(*_d_elemAddressList)[ sortingStartPos ] ),
+					/*out*/thrust::raw_pointer_cast( &(*_d_TempMaskList)[ 0 ] )		/*resulting mask list of non-used elements*/,
+					/*out*/thrust::raw_pointer_cast( &(*_d_TempMaskList2)[ 0 ] )	/*resulting mask list of used elements*/
+			);
 			GV_CHECK_CUDA_ERROR( "CacheManagerFlagTimeStampsSP" );
 
 			//const uint cacheId = Id::value;
 			//if ( cacheId == 1 )
 			//{
 			//	//std::cout << "CacheManagerFlagTimeStampsSP" << std::endl;
-			//	
+			//
 			//	GvKernel_DataCacheManagerFlagTimeStamps<<< gridSize, blockSize >>>( nbElemToSort,
 			//											thrust::raw_pointer_cast( &(*_d_elemAddressList)[ sortingStartPos ] ),
 			//											_d_TimeStampArray->getPointer(),
@@ -550,12 +551,12 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 				/*predicate*/GvCore::not_equal_to_zero< uint >() );
 
 # endif // USE_CUDPP_LIBRARY
-			
+
 			CUDAPM_STOP_EVENT( cache_updateTimestamps_threadReduc2 );
 
 #else
 			memcpyArray( _cpuTimeStampArray, _d_TimeStampArray );
-			
+
 			uint curDstPos = 0;
 
 			CUDAPM_START_EVENT( gpucachemgr_updateTimeStampsCPU );
@@ -632,7 +633,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 #endif
 		this->_lastNumLoads = 0;
 	}
-	
+
 	return _numElemsNotUsed;
 }
 #else // GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_GVCACHEMANAGER
@@ -731,7 +732,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 			CUDAPM_STOP_EVENT( cache_updateTimestamps_threadReduc1 );
 		}
 	}
-	
+
 	return _numElemsNotUsed;
 }
 /******************************************************************************
@@ -755,7 +756,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 		uint cacheNumElems = getNumElements();
 
 		uint activeNumElems = cacheNumElems;
-		
+
 		//uint inactiveNumElems = cacheNumElems - activeNumElems;
 
 		const uint nbElemToSort = activeNumElems;
@@ -777,7 +778,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 			_numElemsNotUsed = cacheNumElems;
 		}
 	}
-	
+
 	return _numElemsNotUsed;
 }
 /******************************************************************************
@@ -801,7 +802,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 		uint cacheNumElems = getNumElements();
 
 		uint activeNumElems = cacheNumElems;
-		
+
 		uint inactiveNumElems = cacheNumElems - activeNumElems;
 
 		const uint nbElemToSort = activeNumElems;
@@ -854,7 +855,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 				/* input to compact */thrust::raw_pointer_cast( &(*_d_elemAddressList)[ sortingStartPos ] ),
 				/* which elements in input are valid */thrust::raw_pointer_cast( &(*_d_TempMaskList2)[ 0 ] ),
 				/* nb of elements in input */nbElemToSort );
-	
+
 			CUDAPM_STOP_EVENT( cache_updateTimestamps_threadReduc2 );
 		}
 		else
@@ -876,16 +877,16 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 
 		this->_lastNumLoads = 0;
 	}
-	
+
 	return _numElemsNotUsed;
 }
 #endif
 
 #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
 /******************************************************************************
- * Main method to launch the production of nodes or bricks 
+ * Main method to launch the production of nodes or bricks
  *
- * @param updateList global buffer of requests of used elements only (node subdivision an brick load/produce)
+ * @param updateList global buffer of requests of used elements only (node subdivision or brick load/produce)
  * @param numUpdateElems ...
  * @param updateMask Type of request to handle (node subdivision or brick load/produce)
  * @param maxNumElems Max number of elements to process
@@ -914,15 +915,15 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 		// Fill the buffer of mask of requests
 
 		CUDAPM_START_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_manageUpdates );
-		
+
 		// The "_d_UpdateCompactList" buffer is filled with only elements addresses that have a type of request equal to "updateMask"
 		// - it returns the number of elements concerned
 		numElems = createUpdateList( updateList, numUpdateElems, updateMask );
-		
+
 		CUDAPM_STOP_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_manageUpdates );
 
 		// Prevent loading more than the cache size
-		numElems = std::min( numElems, getNumElements() );	
+		numElems = std::min( numElems, getNumElements() );
 
 		// Warning to prevent user that there are no more avalaible slots
 		if ( numElems > _numElemsNotUsed )
@@ -971,8 +972,8 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 
 			CUDAPM_START_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_bricksInvalidation );
 
-			invalidateElements( numElems, numValidNodes );		// WARNING !!!! numElems a été modifié auparavant !!!! ===> ERREUR !!!!!!!!!!!!!!
-			
+			invalidateElements( numElems, numValidNodes );		// WARNING !!!! numElems a ï¿½tï¿½ modifiï¿½ auparavant !!!! ===> ERREUR !!!!!!!!!!!!!!
+
 			CUDAPM_STOP_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_bricksInvalidation );
 
 			// ---- [ 3 ] ---- 3rd step
@@ -1015,7 +1016,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 			// _pageTable : page table associated to the pool (used to retrieve node's localization info [code and depth])
 			//_provider->template produceData< ElementRes >( numElems, nodesAddressCompactList, elemsAddressCompactList, gpuPool, _pageTable );
 			pProducer->produceData( numElems, nodesAddressCompactList, elemsAddressCompactList, Id() );
-			
+
 			CUDAPM_STOP_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_subdivKernel );
 			CUDAPM_STOP_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_gpuFetchBricks );
 		}
@@ -1025,7 +1026,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 }
 #else
 /******************************************************************************
- * Main method to launch the production of nodes or bricks 
+ * Main method to launch the production of nodes or bricks
  *
  * @param updateList global buffer of requests of used elements only (node subdivision or brick load/produce)
  * @param numUpdateElems ...
@@ -1054,18 +1055,18 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 		// Fill the buffer of mask of requests
 
 		CUDAPM_START_EVENT_CHANNEL( 0, Id::value, gpucache_nodes_manageUpdates );
-		
+
 		// The "_d_UpdateCompactList" buffer is filled with only elements addresses that have a type of request equal to "updateMask"
 		// - it returns the number of elements concerned
 		numElems = createUpdateList( updateList, numUpdateElems, updateMask );
-		
+
 		CUDAPM_STOP_EVENT_CHANNEL( 0, Id::value, gpucache_nodes_manageUpdates );
 	}
 
 	return numElems;
 }
 /******************************************************************************
- * Main method to launch the production of nodes or bricks 
+ * Main method to launch the production of nodes or bricks
  *
  * @param updateList global buffer of requests of used elements only (node subdivision or brick load/produce)
  * @param numUpdateElems ...
@@ -1096,16 +1097,16 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 		// Fill the buffer of mask of requests
 
 		CUDAPM_START_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_manageUpdates );
-		
+
 		// The "_d_UpdateCompactList" buffer is filled with only elements addresses that have a type of request equal to "updateMask"
 		// - it returns the number of elements concerned
 		//numElems = createUpdateList( updateList, numUpdateElems, updateMask );
 		numElems = pNb;
-		
+
 		CUDAPM_STOP_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_manageUpdates );
 
 		// Prevent loading more than the cache size
-		numElems = std::min( numElems, getNumElements() );	
+		numElems = std::min( numElems, getNumElements() );
 
 		// Warning to prevent user that there are no more avalaible slots
 		if ( numElems > _numElemsNotUsed )
@@ -1154,8 +1155,8 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 
 			CUDAPM_START_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_bricksInvalidation );
 
-			invalidateElements( numElems, numValidNodes );		// WARNING !!!! numElems a été modifié auparavant !!!! ===> ERREUR !!!!!!!!!!!!!!
-			
+			invalidateElements( numElems, numValidNodes );		// WARNING !!!! numElems a ï¿½tï¿½ modifiï¿½ auparavant !!!! ===> ERREUR !!!!!!!!!!!!!!
+
 			CUDAPM_STOP_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_bricksInvalidation );
 
 			// ---- [ 3 ] ---- 3rd step
@@ -1198,7 +1199,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 			// _pageTable : page table associated to the pool (used to retrieve node's localization info [code and depth])
 			//_provider->template produceData< ElementRes >( numElems, nodesAddressCompactList, elemsAddressCompactList, gpuPool, _pageTable );
 			pProducer->produceData( numElems, nodesAddressCompactList, elemsAddressCompactList, Id() );
-			
+
 			CUDAPM_STOP_EVENT_CHANNEL( 0, cacheId, gpucache_nodes_subdivKernel );
 			CUDAPM_STOP_EVENT_CHANNEL( 1, cacheId, gpucache_bricks_gpuFetchBricks );
 		}
@@ -1252,7 +1253,7 @@ uint GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 	CUDAPM_START_EVENT( gpucachemgr_createUpdateList_elemsReduction );
 
 #if USE_CUDPP_LIBRARY
-	
+
 	// Stream compaction
 	cudppCompact( _scanplan,
 		/*output*/thrust::raw_pointer_cast( &(*_d_UpdateCompactList)[ 0 ] ), /*nbValidElements*/_d_numElementsPtr,
@@ -1413,7 +1414,7 @@ void GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, PageTable
 
 		GV_CHECK_CUDA_ERROR( "CacheManagerFlagInvalidations" );
 	}
-	
+
 	// ---- [ 2 ] ---- 2nd step
 
 	{
@@ -1460,7 +1461,7 @@ inline void GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, Pa
 ::write( std::ostream& pStream ) const
 {
 	//_pageTable = new PageTableType();
-	
+
 	// - timestamp buffer
 	GvCore::Array3D< uint >* timeStamps = new GvCore::Array3D< uint >( _d_TimeStampArray->getResolution(), GvCore::Array3D< uint >::StandardHeapMemory );
 	memcpyArray( timeStamps, _d_TimeStampArray );
@@ -1472,7 +1473,7 @@ inline void GvCacheManager< TId, ElementRes, AddressType, PageTableArrayType, Pa
 	thrust::copy( _d_elemAddressList->begin(), _d_elemAddressList->end(), elemAddresses->begin() );
 	pStream.write( reinterpret_cast< const char* >( elemAddresses->data() ), sizeof( uint ) * elemAddresses->size() );
 	delete elemAddresses;
-	
+
 	// Buffer of requests (masks of associated request in the current frame)
 	thrust::host_vector< uint >* requestBuffer = new thrust::host_vector< uint >( _d_UpdateCompactList->size() );
 	thrust::copy( _d_UpdateCompactList->begin(), _d_UpdateCompactList->end(), requestBuffer->begin() );

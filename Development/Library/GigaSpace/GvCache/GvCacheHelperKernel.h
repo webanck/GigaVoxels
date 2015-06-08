@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -64,9 +64,14 @@ __global__
 // TO DO : Prolifing / Optimization
 // - use "Launch Bounds" feature to profile / optimize code
 // __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor )
-void GvKernel_genericWriteIntoCache( const uint pNumElems, uint* pNodesAddressList, uint* pElemAddressList,
-						    TGPUPoolType pGpuPool, TGPUProviderType pGpuProvider, TPageTableType pPageTable )
-{
+void GvKernel_genericWriteIntoCache(
+	const uint pNumElems,
+	uint *pNodesAddressList,
+	uint *pElemAddressList,
+	TGPUPoolType pGpuPool,
+	TGPUProviderType pGpuProvider,
+	TPageTableType pPageTable
+) {
 	// Retrieve global indexes
 	const uint elemNum = blockIdx.x;
 	const uint processID = threadIdx.x + __uimul( threadIdx.y, blockDim.x ) + __uimul( threadIdx.z, __uimul( blockDim.x, blockDim.y ) );
