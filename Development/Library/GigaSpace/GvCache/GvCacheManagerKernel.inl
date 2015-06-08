@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -56,8 +56,9 @@ __forceinline__ void GvCacheManagerKernel< ElementRes, AddressType >::setElement
 		elemOffset = pElemAddress / ElementRes::x;
 	}
 
-	// Update time stamp array with current time (i.e. the time of the current rendering pass)
-	_timeStampArray.set( elemOffset, k_currentTime );
+	// Update time stamp array with current time (i.e. the time of the current rendering pass) including a delay
+	const uint oldTimeStamp = _timeStampArray.get(elemOffset);
+	_timeStampArray.set(elemOffset, (k_currentTime - oldTimeStamp >= 2U ? k_currentTime : oldTimeStamp));
 }
 
 /******************************************************************************
@@ -83,8 +84,9 @@ __forceinline__ void GvCacheManagerKernel< ElementRes, AddressType >::setElement
 		elemOffset = pElemAddress / ElementRes::get();
 	}
 
-	// Update time stamp array with current time
-	_timeStampArray.set( elemOffset, k_currentTime );
+	// Update time stamp array with current time (i.e. the time of the current rendering pass) including a delay
+	const uint oldTimeStamp = _timeStampArray.get(elemOffset);
+	_timeStampArray.set(elemOffset, (k_currentTime - oldTimeStamp >= 2U ? k_currentTime : oldTimeStamp));
 }
 
 } // namespace GvCache

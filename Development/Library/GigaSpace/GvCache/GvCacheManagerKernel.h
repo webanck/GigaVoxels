@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -59,7 +59,7 @@
 namespace GvCache
 {
 
-/** 
+/**
  * @struct GvCacheManagerKernel
  *
  * @brief The GvCacheManagerKernel class provides mecanisms to update usage information of elements
@@ -157,9 +157,13 @@ namespace GvCache
 	template< class ElementRes, class AddressType >
 	__global__
 	// __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor )
-	void CacheManagerFlagTimeStampsSP( GvCacheManagerKernel< ElementRes, AddressType > pCacheManager,
-									  const uint pNumElem, const uint* pTimeStampsElemAddressList, uint* pTempMaskList, uint* pTempMaskList2 )
-	{
+	void CacheManagerFlagTimeStampsSP(
+		GvCacheManagerKernel <ElementRes, AddressType> pCacheManager,
+		const uint pNumElem,
+		const uint *pTimeStampsElemAddressList,
+		uint *pTempMaskList,
+		uint *pTempMaskList2
+	) {
 		// Retrieve global data index
 		const uint lineSize = __uimul( blockDim.x, gridDim.x );
 		const uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
@@ -174,7 +178,7 @@ namespace GvCache
 			const uint3 elemAddress = AddressType::unpackAddress( elemAddressEnc );
 
 			// Generate an error
-			if ( pCacheManager._timeStampArray.get( elemAddress ) == k_currentTime )
+			if ( pCacheManager._timeStampArray.get( elemAddress ) + 2U >= k_currentTime )
 			{
 				pTempMaskList[ elem ] = 0;
 				pTempMaskList2[ elem ] = 1;
@@ -184,9 +188,6 @@ namespace GvCache
 				pTempMaskList[ elem ] = 1;
 				pTempMaskList2[ elem ] = 0;
 			}
-
-			/*pTempMaskList[ elem ] = 0;
-			pTempMaskList2[ elem ] = 1;*/
 		}
 	}
 
@@ -228,9 +229,11 @@ namespace GvCache
 template< class ElementRes, class AddressType >
 __global__
 // __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor )
-void CacheManagerFlagInvalidations( GvCacheManagerKernel< ElementRes, AddressType > pCacheManager,
-								   const uint pNumElems, const uint* pSortedElemAddressList )
-{
+void CacheManagerFlagInvalidations(
+	GvCacheManagerKernel <ElementRes, AddressType> pCacheManager,
+	const uint pNumElems,
+	const uint * pSortedElemAddressList
+) {
 	// Retrieve global index
 	const uint lineSize = __uimul( blockDim.x, gridDim.x );
 	const uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
@@ -260,9 +263,11 @@ void CacheManagerFlagInvalidations( GvCacheManagerKernel< ElementRes, AddressTyp
 template< class ElementRes, class AddressType, class PageTableKernelArrayType >
 __global__
 // __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor )
-void CacheManagerInvalidatePointers( GvCacheManagerKernel< ElementRes, AddressType > pCacheManager,
-									const uint pNumElems, PageTableKernelArrayType pPageTable )
-{
+void CacheManagerInvalidatePointers(
+	GvCacheManagerKernel <ElementRes, AddressType> pCacheManager,
+	const uint pNumElems,
+	PageTableKernelArrayType pPageTable
+) {
 	// Retrieve global data index
 	const uint lineSize = __uimul( blockDim.x, gridDim.x );
 	const uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
@@ -302,8 +307,12 @@ void CacheManagerInvalidatePointers( GvCacheManagerKernel< ElementRes, AddressTy
 	 ******************************************************************************/
 	__global__
 	// __launch_bounds__( maxThreadsPerBlock, minBlocksPerMultiprocessor )
-	void CacheManagerCreateUpdateMask( const uint pNumElem, const uint* pUpdateList, uint* pResMask, const uint pFlag )
-	{
+	void CacheManagerCreateUpdateMask(
+		const uint pNumElem,
+		const uint *pUpdateList,
+		uint *pResMask,
+		const uint pFlag
+	) {
 		// Retrieve global data index
 		const uint lineSize = __uimul( blockDim.x, gridDim.x );
 		const uint elem = threadIdx.x + __uimul( blockIdx.x, blockDim.x ) + __uimul( blockIdx.y, lineSize );
