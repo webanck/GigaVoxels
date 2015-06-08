@@ -134,12 +134,20 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		// ---- Flag used data (the traversed one) ----
 
 		// Set current node as "used"
-		pGpuCache._nodeCacheManager.setElementUsage( nodeTileAddress );
-
+		pGpuCache._nodeCacheManager.setElementUsage(nodeTileAddress);
 		// Set current brick as "used"
-		if ( pNode.hasBrick() )
-		{
-			pGpuCache._brickCacheManager.setElementUsage( pNode.getBrickAddress() );
+		if(pNode.hasBrick()) pGpuCache._brickCacheManager.setElementUsage(pNode.getBrickAddress());
+
+		//If the node is to old, update it.
+		if(k_currentTime - pGpuCache._nodeCacheManager._timeStampArray.get(nodeAddress) >= 2U) {
+			pRequestEmitted = true;
+
+			if(pNode.isBrick()) pGpuCache.loadRequest(nodeAddress);
+			else if(descentSizeCriteria && !pNode.isTerminal()) pGpuCache.subDivRequest(nodeAddress);
+			else pRequestEmitted = false;
+
+			//TODO: gérer l'update pour les parents aussi.
+			//TODO: update de l'octree aussi (grille en fil de fer).
 		}
 
 		// ---- Emit requests if needed (node subdivision or brick loading/producing) ----
@@ -177,8 +185,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		}
 
 		nodeTileAddress = pNode.getChildAddress().x;
-	}
-	while ( descentSizeCriteria && pNode.hasSubNodes() );	// END of the data structure traversal
+	} while(descentSizeCriteria && pNode.hasSubNodes());	// END of the data structure traversal
 
 	// Compute sample offset in node tree
 	pSampleOffsetInNodeTree = pSamplePosTree - nodePosTree;
