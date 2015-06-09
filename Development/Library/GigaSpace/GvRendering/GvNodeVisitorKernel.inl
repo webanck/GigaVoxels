@@ -90,6 +90,13 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 	// It will be used to fetch info of the node stored in then "node pool".
 	uint nodeTileAddress = pVolumeTree._rootAddress;
 
+	//An array of the nodes of different depths.
+	// #define TMP_TEST_MAX_DEPTH k_maxVolTreeDepth
+	// uint *nodesAddresses(new uint[TMP_TEST_MAX_DEPTH]);
+	// bool *nodesTypes(new bool[TMP_TEST_MAX_DEPTH]);
+	// uint lastUpdateDepth(TMP_TEST_MAX_DEPTH);
+
+
 	// Traverse the data structure from root node
 	// until a descent criterion is not fulfilled anymore.
 	bool descentSizeCriteria;
@@ -128,8 +135,9 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		// Update descent condition
 		descentSizeCriteria = ( voxelSizeTree > pConeAperture ) && ( nodeDepth < k_maxVolTreeDepth );
 
-		// Update octree depth
-		nodeDepth++;
+		// //Update addresses array.
+		// nodesAddresses[nodeDepth] = nodeAddress;
+		// nodesTypes[nodeDepth] = pNode.isBrick();
 
 		// ---- Flag used data (the traversed one) ----
 
@@ -138,17 +146,20 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		// Set current brick as "used"
 		if(pNode.hasBrick()) pGpuCache._brickCacheManager.setElementUsage(pNode.getBrickAddress());
 
-		//If the node is to old, update it.
-		if(k_currentTime - pGpuCache._nodeCacheManager._timeStampArray.get(nodeAddress) >= 2U) {
-			pRequestEmitted = true;
-
-			if(pNode.isBrick()) pGpuCache.loadRequest(nodeAddress);
-			else if(descentSizeCriteria && !pNode.isTerminal()) pGpuCache.subDivRequest(nodeAddress);
-			else pRequestEmitted = false;
-
-			//TODO: gérer l'update pour les parents aussi.
-			//TODO: update de l'octree aussi (grille en fil de fer).
-		}
+		// //If the node is to old, plan to update it.
+		// if(k_currentTime - pGpuCache._nodeCacheManager._timeStampArray.get(nodeAddress) >= 2U) {
+		// 	pRequestEmitted = true;
+		//
+		// 	//Keep this depth to update parents at the end.
+		// 	// lastUpdateDepth = nodeDepth;
+		//
+		// 	if(pNode.isBrick()) pGpuCache.loadRequest(nodeAddress);
+		// 	else if(pNode.hasSubNodes()) pGpuCache.subDivRequest(nodeAddress);
+		// 	else pRequestEmitted = false;
+		//
+		// 	// break;
+		// 	//TODO: update de l'octree aussi (grille en fil de fer).
+		// }
 
 		// ---- Emit requests if needed (node subdivision or brick loading/producing) ----
 
@@ -185,7 +196,27 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		}
 
 		nodeTileAddress = pNode.getChildAddress().x;
+
+		// Update octree depth
+		nodeDepth++;
 	} while(descentSizeCriteria && pNode.hasSubNodes());	// END of the data structure traversal
+
+	// //Update addresses array for the last element.
+	// nodesAddresses[nodeDepth] = nodeAddress;
+	// nodesTypes[nodeDepth] = pNode.isBrick();
+
+	// //If a node needed update, update it and it's parents.
+	// while(lastUpdateDepth > 1U && lastUpdateDepth < TMP_TEST_MAX_DEPTH) {
+	// 	//Updating the root node seems to flush its children...
+	// 	// pGpuCache.loadRequest(nodesAddresses[lastUpdateDepth]);
+	// 	if(nodesTypes[lastUpdateDepth]) pGpuCache.loadRequest(nodesAddresses[lastUpdateDepth]);
+	// 	else pGpuCache.subDivRequest(nodesAddresses[lastUpdateDepth]);
+	//
+	// 	lastUpdateDepth--;
+	// }
+	// //Delete the associated array.
+	// delete[] nodesAddresses;
+	// delete[] nodesTypes;
 
 	// Compute sample offset in node tree
 	pSampleOffsetInNodeTree = pSamplePosTree - nodePosTree;

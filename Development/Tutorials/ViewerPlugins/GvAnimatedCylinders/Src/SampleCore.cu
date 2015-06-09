@@ -288,6 +288,7 @@ void SampleCore::draw()
 	CUDAPM_START_EVENT( app_init_frame );
 
 	updateElapsedTime();
+	cacheFlushing();
 
 	//glMatrixMode( GL_MODELVIEW );		// already done in the QLViewer::preDraw() method
 
@@ -1332,7 +1333,7 @@ void SampleCore::setTimeBudgetMonitoring( bool pFlag )
  ******************************************************************************/
 bool SampleCore::hasRenderingTimeBudget() const
 {
-	return true;
+	return false;
 }
 
 /******************************************************************************
@@ -1449,4 +1450,12 @@ void SampleCore::updateElapsedTime() {
 	instant = newInstant;
 
 	// std::cout << _elapsedSeconds << " : " << _elapsedMiliseconds << std::endl;
+}
+
+bool SampleCore::cacheFlushing() {
+	if(++_frame > 15U) {
+		_frame = 0;
+		clearCache();
+		return true;
+	} else return false;
 }

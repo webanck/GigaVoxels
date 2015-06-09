@@ -743,6 +743,8 @@ public:
 	 */
 	virtual void updateElapsedTime();
 
+	virtual bool cacheFlushing();
+
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************
 	 **************************************************************************/
@@ -787,6 +789,7 @@ protected:
 	 */
 	uint _elapsedSeconds;
 	uint _elapsedMiliseconds;
+	uint _frame;
 
 	/**
 	 * Shader material property (according to opacity)

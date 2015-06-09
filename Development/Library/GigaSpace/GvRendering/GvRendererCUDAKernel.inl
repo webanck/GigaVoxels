@@ -413,7 +413,7 @@ __forceinline__ void GvRendererKernel::render(
 		// Early loop termination
 		if ( TFastUpdateMode && modifInfoWriten )
 		{
-			break;
+			// break;
 		}
 
 		// [ 2 ] - If node is a brick, renderer it.
