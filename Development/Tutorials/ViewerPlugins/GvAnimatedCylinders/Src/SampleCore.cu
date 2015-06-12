@@ -370,7 +370,8 @@ void SampleCore::draw()
 	glPopMatrix();
 
 	// Render
-	_pipeline->execute( modelMatrix, viewMatrix, projectionMatrix, viewport );
+	for(uint i=0U; i<15U; i++)
+		_pipeline->execute( modelMatrix, viewMatrix, projectionMatrix, viewport );
 
 	if ( _graphicsEnvironment->getType() != 0 )
 	{
@@ -1453,9 +1454,10 @@ void SampleCore::updateElapsedTime() {
 }
 
 bool SampleCore::cacheFlushing() {
-	if(++_frame > 15U) {
-		_frame = 0;
+	// static uint frame = 0U;
+	// if(++frame > 15U) {
+		// frame = 0;
 		clearCache();
 		return true;
-	} else return false;
+	// } else return false;
 }

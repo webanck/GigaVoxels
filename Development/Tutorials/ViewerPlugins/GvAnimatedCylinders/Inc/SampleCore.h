@@ -789,7 +789,6 @@ protected:
 	 */
 	uint _elapsedSeconds;
 	uint _elapsedMiliseconds;
-	uint _frame;
 
 	/**
 	 * Shader material property (according to opacity)
