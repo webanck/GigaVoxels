@@ -178,7 +178,7 @@ namespace GvCache
 			const uint3 elemAddress = AddressType::unpackAddress( elemAddressEnc );
 
 			// Generate an error
-			if ( pCacheManager._timeStampArray.get( elemAddress ) + 2U >= k_currentTime )
+			if ( pCacheManager._timeStampArray.get( elemAddress ) == k_currentTime )
 			{
 				pTempMaskList[ elem ] = 0;
 				pTempMaskList2[ elem ] = 1;

@@ -56,9 +56,8 @@ __forceinline__ void GvCacheManagerKernel< ElementRes, AddressType >::setElement
 		elemOffset = pElemAddress / ElementRes::x;
 	}
 
-	// Update time stamp array with current time (i.e. the time of the current rendering pass) including a delay
-	const uint oldTimeStamp = _timeStampArray.get(elemOffset);
-	_timeStampArray.set(elemOffset, (k_currentTime - oldTimeStamp >= 2U ? k_currentTime : oldTimeStamp));
+	// Update time stamp array with current time (i.e. the time of the current rendering pass)
+	_timeStampArray.set(elemOffset, k_currentTime);
 }
 
 /******************************************************************************
@@ -84,9 +83,8 @@ __forceinline__ void GvCacheManagerKernel< ElementRes, AddressType >::setElement
 		elemOffset = pElemAddress / ElementRes::get();
 	}
 
-	// Update time stamp array with current time (i.e. the time of the current rendering pass) including a delay
-	const uint oldTimeStamp = _timeStampArray.get(elemOffset);
-	_timeStampArray.set(elemOffset, (k_currentTime - oldTimeStamp >= 2U ? k_currentTime : oldTimeStamp));
+	// Update time stamp array with current time (i.e. the time of the current rendering pass)
+	_timeStampArray.set(elemOffset, k_currentTime);
 }
 
 } // namespace GvCache
