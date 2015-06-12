@@ -402,7 +402,7 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
-	double v = 0.2f + ((double)(cElapsedSeconds%10U))/40.f;
+	double v = 0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
 	return isInCylinder(
 		pPoint,
 		make_float3(-0.5f),
@@ -442,7 +442,7 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(
 template <typename TDataStructureType>
 __device__
 inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
-	double v = 0.2f + ((double)(cElapsedSeconds%10U))/40.f;
+	double v = 0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
 	return cylinderNormal(
 		pPoint,
 		make_float3(-0.5f),
