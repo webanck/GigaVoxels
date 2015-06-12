@@ -298,8 +298,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 
 	// Descent in volume tree until max depth is reach or current traversed node has no subnodes
 	int i = 0;
-	do
-	{
+	do {
 		pNodeSize	*= 1.0f / (float)VolumeTreeKernelType::NodeResolution::maxRes;
 		nodeSizeInv	*= (float)VolumeTreeKernelType::NodeResolution::maxRes;
 
@@ -327,12 +326,9 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 
 		pNodeTileAddress = pNode.getChildAddress().x;
 		i++;
-	}
-	while ( ( i < pMaxDepth ) && pNode.hasSubNodes() );
+	} while((i < pMaxDepth) && pNode.hasSubNodes());
 
 	pNodeDepth = i;
-
-	//i -= 1;		// <== TODO : don't seem to be used anymore, remove it
 }
 
 /******************************************************************************

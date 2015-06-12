@@ -208,11 +208,11 @@ void GvDataProductionManager< TDataStructure >
 	CUDAPM_START_EVENT( gpucache_preRenderPass );
 
 	// Clear subdiv pool
-#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
+// #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
 	_updateBufferArray->fill( 0 );
-#else
-	_updateBufferArray->fillAsync( 0 );	// TO DO : with a kernel instead of cudaMemSet(), copy engine could overlap
-#endif
+// #else
+// 	_updateBufferArray->fillAsync( 0 );	// TO DO : with a kernel instead of cudaMemSet(), copy engine could overlap
+// #endif
 
 	// Number of requests cache has handled
 	//_nbNodeSubdivisionRequests = 0;
@@ -242,43 +242,44 @@ template< typename TDataStructure >
 uint GvDataProductionManager< TDataStructure >
 ::handleRequests()
 {
+	// _lastProductionTimed = false;
 	// Measure the time taken by the last production.
-	if ( _lastProductionTimed
-			&& ( _nbBrickLoadRequests != 0 || _nbNodeSubdivisionRequests != 0 ) )
-	{
-		cudaEventSynchronize( _stopProductionBricks );
-		float lastProductionNodesTime, lastProductionBricksTime;
-
-		cudaEventElapsedTime( &lastProductionNodesTime, _startProductionNodes, _stopProductionNodes );
-		cudaEventElapsedTime( &lastProductionBricksTime, _startProductionBricks, _stopProductionBricks );
-
-		// Don't take too low number of requests into account (in this cases, the additional 
-		// costs of launching the kernel, compacting the array... is greater than the 
-		// brick/node production time)
-		if ( _nbNodeSubdivisionRequests > 63 )
-		{
-			_totalProducedNodes += _nbNodeSubdivisionRequests;
-			_totalNodesProductionTime += lastProductionNodesTime;
-		}
-
-		if ( _nbBrickLoadRequests > 63 )
-		{
-			_totalProducedBricks += _nbBrickLoadRequests;
-			_totalBrickProductionTime += lastProductionBricksTime;
-		}
-
-		// Update the vector of statistics.
-		struct GsProductionStatistics stats;
-		//stats._frameId = ??? TODO
-		stats._nNodes = _nbNodeSubdivisionRequests;
-		stats._nodesProductionTime = lastProductionNodesTime;
-		stats._nBricks = _nbBrickLoadRequests;
-		stats._bricksProductionTime = lastProductionBricksTime;
-		_productionStatistics.push_back( stats );
-	}
-	// _isProductionTimeLimited should not be used inside this function since it can be changed 
+	// if ( _lastProductionTimed
+	// 		&& ( _nbBrickLoadRequests != 0 || _nbNodeSubdivisionRequests != 0 ) )
+	// {
+	// 	cudaEventSynchronize( _stopProductionBricks );
+	// 	float lastProductionNodesTime, lastProductionBricksTime;
+	//
+	// 	cudaEventElapsedTime( &lastProductionNodesTime, _startProductionNodes, _stopProductionNodes );
+	// 	cudaEventElapsedTime( &lastProductionBricksTime, _startProductionBricks, _stopProductionBricks );
+	//
+	// 	// Don't take too low number of requests into account (in this cases, the additional
+	// 	// costs of launching the kernel, compacting the array... is greater than the
+	// 	// brick/node production time)
+	// 	if ( _nbNodeSubdivisionRequests > 63 )
+	// 	{
+	// 		_totalProducedNodes += _nbNodeSubdivisionRequests;
+	// 		_totalNodesProductionTime += lastProductionNodesTime;
+	// 	}
+	//
+	// 	if ( _nbBrickLoadRequests > 63 )
+	// 	{
+	// 		_totalProducedBricks += _nbBrickLoadRequests;
+	// 		_totalBrickProductionTime += lastProductionBricksTime;
+	// 	}
+	//
+	// 	// Update the vector of statistics.
+	// 	struct GsProductionStatistics stats;
+	// 	//stats._frameId = ??? TODO
+	// 	stats._nNodes = _nbNodeSubdivisionRequests;
+	// 	stats._nodesProductionTime = lastProductionNodesTime;
+	// 	stats._nBricks = _nbBrickLoadRequests;
+	// 	stats._bricksProductionTime = lastProductionBricksTime;
+	// 	_productionStatistics.push_back( stats );
+	// }
+	// _isProductionTimeLimited should not be used inside this function since it can be changed
 	// by the user at anytime and we need to have a constant value throughout the whole function.
-	_lastProductionTimed = _isProductionTimeLimited;
+	// _lastProductionTimed = _isProductionTimeLimited;
 
 	// TO DO
 	// Check whether or not the inversion call of updateTimeStamps() with manageUpdates() has side effects
@@ -305,73 +306,77 @@ uint GvDataProductionManager< TDataStructure >
 		// - TO DO : if updateTimestamps is before, this task could also be done in parallel using streams
 		CUDAPM_START_EVENT( dataProduction_manageRequests );
 		uint nbRequests = manageUpdates();
+		uint totalRequests = nbRequests;
+		// std::cout << "Total requests: " << totalRequests << std::endl;
 		CUDAPM_STOP_EVENT( dataProduction_manageRequests );
 
-#ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
-		// Get number of elements
-		// BEWARE : synchronization to avoid an expensive final call to cudaDeviceSynchronize()
-	#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_WITH_COMBINED_COPY
-		size_t nbElementsTemp;
-		_nodesCacheManager->updateTimeStampsCopy( _intraFramePass );
-		_bricksCacheManager->updateTimeStampsCopy( _intraFramePass );
-		GV_CUDA_SAFE_CALL( cudaMemcpy( &nbElementsTemp, _d_nbValidRequests, sizeof( size_t ), cudaMemcpyDeviceToHost ) );
-		nbRequests = static_cast< uint >( nbElementsTemp );
-	#else
-		size_t nbElementsTemp[ 3 ];
-		GV_CUDA_SAFE_CALL( cudaMemcpy( nbElementsTemp, _d_nbValidRequests, 3 * sizeof( size_t ), cudaMemcpyDeviceToHost ) );
-		nbRequests = static_cast< uint >( nbElementsTemp[ 0 ] );
-		// BEWARE : in nodes/bricks managers, real value should be _numElemsNotUsed = (uint)numElemsNotUsedST + inactiveNumElems
-		_nodesCacheManager->_numElemsNotUsedST = static_cast< uint >( nbElementsTemp[ 1 ] );
-		_bricksCacheManager->_numElemsNotUsedST = static_cast< uint >( nbElementsTemp[ 2 ] );
-	#endif
-		// Launch final "stream compaction" steps for "used" elements
-		this->_numNodeTilesNotInUse = _nodesCacheManager->updateTimeStampsFinal( _intraFramePass );
-		this->_numBricksNotInUse = _bricksCacheManager->updateTimeStampsFinal( _intraFramePass );
-#endif
+// #ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
+// 		// Get number of elements
+// 		// BEWARE : synchronization to avoid an expensive final call to cudaDeviceSynchronize()
+// 	#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_WITH_COMBINED_COPY
+// 		size_t nbElementsTemp;
+// 		_nodesCacheManager->updateTimeStampsCopy( _intraFramePass );
+// 		_bricksCacheManager->updateTimeStampsCopy( _intraFramePass );
+// 		GV_CUDA_SAFE_CALL( cudaMemcpy( &nbElementsTemp, _d_nbValidRequests, sizeof( size_t ), cudaMemcpyDeviceToHost ) );
+// 		nbRequests = static_cast< uint >( nbElementsTemp );
+// 	#else
+// 		size_t nbElementsTemp[ 3 ];
+// 		GV_CUDA_SAFE_CALL( cudaMemcpy( nbElementsTemp, _d_nbValidRequests, 3 * sizeof( size_t ), cudaMemcpyDeviceToHost ) );
+// 		nbRequests = static_cast< uint >( nbElementsTemp[ 0 ] );
+// 		// BEWARE : in nodes/bricks managers, real value should be _numElemsNotUsed = (uint)numElemsNotUsedST + inactiveNumElems
+// 		_nodesCacheManager->_numElemsNotUsedST = static_cast< uint >( nbElementsTemp[ 1 ] );
+// 		_bricksCacheManager->_numElemsNotUsedST = static_cast< uint >( nbElementsTemp[ 2 ] );
+// 	#endif
+// 		// Launch final "stream compaction" steps for "used" elements
+// 		this->_numNodeTilesNotInUse = _nodesCacheManager->updateTimeStampsFinal( _intraFramePass );
+// 		this->_numBricksNotInUse = _bricksCacheManager->updateTimeStampsFinal( _intraFramePass );
+// #endif
 
 		// Handle requests :
-#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
+// #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
 
 		// [ 1 ] - Handle the "subdivide nodes" requests
 
 		// Limit production according to the time limit.
 		// First, do as if all the requests were node subdivisions
-		if ( _lastProductionTimed )
-		{
-			if ( _totalProducedNodes != 0u )
-			{
-				nbRequests = min(
-						nbRequests,
-						static_cast< uint >( _productionTimeLimit * _totalProducedNodes / _totalNodesProductionTime ) );
-			}
-			cudaEventRecord( _startProductionNodes );
-		}
+		// if ( _lastProductionTimed )
+		// {
+		// 	if ( _totalProducedNodes != 0u )
+		// 	{
+		// 		nbRequests = min(
+		// 				nbRequests,
+		// 				static_cast< uint >( _productionTimeLimit * _totalProducedNodes / _totalNodesProductionTime ) );
+		// 	}
+		// 	cudaEventRecord( _startProductionNodes );
+		// }
 
 		CUDAPM_START_EVENT( producer_nodes );
 		//uint numSubDiv = manageSubDivisions( nbRequests );
 		_nbNodeSubdivisionRequests = manageSubDivisions( nbRequests );
+		// std::cout << "Sub requests done: " << _nbNodeSubdivisionRequests << std::endl;
 		CUDAPM_STOP_EVENT( producer_nodes );
 
-		if ( _lastProductionTimed )
-		{
-			cudaEventRecord( _stopProductionNodes );
-			cudaEventRecord( _startProductionBricks );
-		}
+		// if ( _lastProductionTimed )
+		// {
+		// 	cudaEventRecord( _stopProductionNodes );
+		// 	cudaEventRecord( _startProductionBricks );
+		// }
 
 		//  [ 2 ] - Handle the "load/produce bricks" requests
 
 		// Now, we know how many requests are node and how many are bricks, we can limit
 		// the number of bricks requests according to the number of node requests performed.
-		uint nbBricks = nbRequests;
-		if ( _lastProductionTimed && _totalProducedNodes != 0 && _totalProducedBricks != 0 )
-		{
-			// Evaluate how much time will be left after nodes subdivision
-			float remainingTime = _productionTimeLimit - _nbNodeSubdivisionRequests * _totalNodesProductionTime / _totalProducedNodes;
-			// Limit the number of request to fit in the remaining time
-			nbBricks = min(
-					nbBricks,
-					static_cast< uint >( remainingTime * _totalProducedBricks / _totalBrickProductionTime ) );
-		}
+		//Warning! The requests are not exclusives: a request can be of Load & Subdivision??
+		uint nbBricks = nbRequests/* - _nbNodeSubdivisionRequests*/;
+		// if ( _lastProductionTimed && _totalProducedNodes != 0 && _totalProducedBricks != 0 )
+		// {
+		// 	// Evaluate how much time will be left after nodes subdivision
+		// 	float remainingTime = _productionTimeLimit - _nbNodeSubdivisionRequests * _totalNodesProductionTime / _totalProducedNodes;
+		// 	// Limit the number of request to fit in the remaining time
+		// 	nbBricks = min(
+		// 			nbBricks,
+		// 			static_cast< uint >( remainingTime * _totalProducedBricks / _totalBrickProductionTime ) );
+		// }
 
 		CUDAPM_START_EVENT( producer_bricks );
 		if ( nbBricks > 0 )
@@ -379,42 +384,38 @@ uint GvDataProductionManager< TDataStructure >
 			_nbBrickLoadRequests = manageDataLoadGPUProd( nbBricks );
 		}
 		CUDAPM_STOP_EVENT( producer_bricks );
-#else
-		if ( nbRequests > 0 ) {
-			produceData( nbRequests );
-		}
-#endif
+		// std::cout << "Load requests done: " << _nbBrickLoadRequests << std::endl;
+		// std::cout << "Requests done: " << _nbNodeSubdivisionRequests + _nbBrickLoadRequests << std::endl;
+		// std::cout << std::endl;
+// #else
+// 		if ( nbRequests > 0 ) {
+// 			produceData( nbRequests );
+// 		}
+// #endif
 	//}
 
 	// Tree data structure monitoring
 	if ( _hasTreeDataStructureMonitoring )
 	{
-		//if ( _nbNodeSubdivisionRequests > 0 )
-		//{
-			// TEST
-			dim3 blockSize( 128, 1, 1 );
-			dim3 gridSize( ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z ) / 128 + 1, 1, 1 );
-			GVKernel_TrackLeafNodes< typename TDataStructure::VolTreeKernelType ><<< gridSize, blockSize >>>( _dataStructure->volumeTreeKernel, _nodesCacheManager->_pageTable->getKernel()/*page table*/, ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z )/*nb nodes*/, _dataStructure->getMaxDepth()/*max depth*/, thrust::raw_pointer_cast( &( *this->_leafNodes )[ 0 ] ), thrust::raw_pointer_cast( &( *this->_emptyNodeVolume )[ 0 ] ) );
-			_nbLeafNodes = thrust::reduce( (*_leafNodes).begin(), (*_leafNodes).end(), static_cast< unsigned int >( 0 ), thrust::plus< unsigned int >() );
-			const float _emptyVolume = thrust::reduce( (*_emptyNodeVolume).begin(), (*_emptyNodeVolume).end(), static_cast< float >( 0.f ), thrust::plus< float >() );
-			//std::cout << "------------------------------------------------" << _nbLeafNodes << std::endl;
-			//std::cout << "Volume of empty nodes : " << ( _emptyVolume * 100.f ) << std::endl;
-			//std::cout << "------------------------------------------------" << _nbLeafNodes << std::endl;
-			//std::cout << "TOTAL number of leaf nodes : " << _nbLeafNodes << std::endl;
-			GVKernel_TrackNodes< typename TDataStructure::VolTreeKernelType ><<< gridSize, blockSize >>>( _dataStructure->volumeTreeKernel, _nodesCacheManager->_pageTable->getKernel()/*page table*/, ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z )/*nb nodes*/, _dataStructure->getMaxDepth()/*max depth*/, thrust::raw_pointer_cast( &( *this->_leafNodes )[ 0 ] ), thrust::raw_pointer_cast( &( *this->_emptyNodeVolume )[ 0 ] ) );
-			_nbNodes = thrust::reduce( (*_leafNodes).begin(), (*_leafNodes).end(), static_cast< unsigned int >( 0 ), thrust::plus< unsigned int >() );
-			//std::cout << "TOTAL number of nodes : " << _nbNodes << std::endl;
-		//}
-		if ( _nbBrickLoadRequests > 0 )
-		{
-			//...
-		}
+		// TEST
+		dim3 blockSize( 128, 1, 1 );
+		dim3 gridSize( ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z ) / 128 + 1, 1, 1 );
+		GVKernel_TrackLeafNodes< typename TDataStructure::VolTreeKernelType ><<< gridSize, blockSize >>>( _dataStructure->volumeTreeKernel, _nodesCacheManager->_pageTable->getKernel()/*page table*/, ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z )/*nb nodes*/, _dataStructure->getMaxDepth()/*max depth*/, thrust::raw_pointer_cast( &( *this->_leafNodes )[ 0 ] ), thrust::raw_pointer_cast( &( *this->_emptyNodeVolume )[ 0 ] ) );
+		_nbLeafNodes = thrust::reduce( (*_leafNodes).begin(), (*_leafNodes).end(), static_cast< unsigned int >( 0 ), thrust::plus< unsigned int >() );
+		const float _emptyVolume = thrust::reduce( (*_emptyNodeVolume).begin(), (*_emptyNodeVolume).end(), static_cast< float >( 0.f ), thrust::plus< float >() );
+		//std::cout << "------------------------------------------------" << _nbLeafNodes << std::endl;
+		//std::cout << "Volume of empty nodes : " << ( _emptyVolume * 100.f ) << std::endl;
+		//std::cout << "------------------------------------------------" << _nbLeafNodes << std::endl;
+		//std::cout << "TOTAL number of leaf nodes : " << _nbLeafNodes << std::endl;
+		GVKernel_TrackNodes< typename TDataStructure::VolTreeKernelType ><<< gridSize, blockSize >>>( _dataStructure->volumeTreeKernel, _nodesCacheManager->_pageTable->getKernel()/*page table*/, ( _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z )/*nb nodes*/, _dataStructure->getMaxDepth()/*max depth*/, thrust::raw_pointer_cast( &( *this->_leafNodes )[ 0 ] ), thrust::raw_pointer_cast( &( *this->_emptyNodeVolume )[ 0 ] ) );
+		_nbNodes = thrust::reduce( (*_leafNodes).begin(), (*_leafNodes).end(), static_cast< unsigned int >( 0 ), thrust::plus< unsigned int >() );
+		//std::cout << "TOTAL number of nodes : " << _nbNodes << std::endl;
 	}
 
-	if ( _lastProductionTimed && nbRequests > 0 )
-	{
-		cudaEventRecord( _stopProductionBricks );
-	}
+	// if ( _lastProductionTimed && nbRequests > 0 )
+	// {
+	// 	cudaEventRecord( _stopProductionBricks );
+	// }
 
 	return nbRequests;
 }
@@ -543,44 +544,44 @@ void GvDataProductionManager< TDataStructure >
 {
 	// Ask nodes cache manager to update time stamps
 	CUDAPM_START_EVENT(cache_updateTimestamps_dataStructure);
-#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
+// #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
 	this->_numNodeTilesNotInUse = _nodesCacheManager->updateTimeStamps( _intraFramePass );
-#else
-	_nodesCacheManager->updateTimeStamps( _intraFramePass );
-#endif
+// #else
+// 	_nodesCacheManager->updateTimeStamps( _intraFramePass );
+// #endif
 	CUDAPM_STOP_EVENT(cache_updateTimestamps_dataStructure);
 
-#if USE_BRICK_USAGE_OPTIM
-	// New optimisation for brick usage flag
-	// Buggee !
-
-	/*if ( _useBrickUsageOptim && !_intraFramePass )*/
-	{
-		//uint numNodeTiles=this->_numNodeTilesNotInUse;
-		uint numNodeTileUsed = _nodesCacheManager->getNumElements() - this->_numNodeTilesNotInUse;
-
-		if ( numNodeTileUsed > 0 )
-		{
-			// Launch Kernel
-			dim3 blockSize( 64, 1, 1 );
-			uint numBlocks = iDivUp( numNodeTileUsed, blockSize.x );
-			dim3 gridSize = dim3( std::min( numBlocks, 65535U ), iDivUp( numBlocks, 65535U ), 1 );
-			UpdateBrickUsageFromNodes<<<gridSize, blockSize, 0>>>( numNodeTileUsed,
-				thrust::raw_pointer_cast( &(*(_nodesCacheManager->getTimeStampsElemAddressList() ) )[ this->_numNodeTilesNotInUse ] ),
-				this->_dataStructure->volumeTreeKernel, this->getKernelObject() );
-
-			GV_CHECK_CUDA_ERROR( "UpdateBrickUsageFromNodes" );
-		}
-	}
-#endif
+// #if USE_BRICK_USAGE_OPTIM
+// 	// New optimisation for brick usage flag
+// 	// Buggee !
+//
+// 	/*if ( _useBrickUsageOptim && !_intraFramePass )*/
+// 	{
+// 		//uint numNodeTiles=this->_numNodeTilesNotInUse;
+// 		uint numNodeTileUsed = _nodesCacheManager->getNumElements() - this->_numNodeTilesNotInUse;
+//
+// 		if ( numNodeTileUsed > 0 )
+// 		{
+// 			// Launch Kernel
+// 			dim3 blockSize( 64, 1, 1 );
+// 			uint numBlocks = iDivUp( numNodeTileUsed, blockSize.x );
+// 			dim3 gridSize = dim3( std::min( numBlocks, 65535U ), iDivUp( numBlocks, 65535U ), 1 );
+// 			UpdateBrickUsageFromNodes<<<gridSize, blockSize, 0>>>( numNodeTileUsed,
+// 				thrust::raw_pointer_cast( &(*(_nodesCacheManager->getTimeStampsElemAddressList() ) )[ this->_numNodeTilesNotInUse ] ),
+// 				this->_dataStructure->volumeTreeKernel, this->getKernelObject() );
+//
+// 			GV_CHECK_CUDA_ERROR( "UpdateBrickUsageFromNodes" );
+// 		}
+// 	}
+// #endif
 
 	// Ask bricks cache manager to update time stamps
 	CUDAPM_START_EVENT(cache_updateTimestamps_bricks);
-#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
+// #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
 	this->_numBricksNotInUse = _bricksCacheManager->updateTimeStamps( _intraFramePass );
-#else
-	_bricksCacheManager->updateTimeStamps( _intraFramePass );
-#endif
+// #else
+// 	_bricksCacheManager->updateTimeStamps( _intraFramePass );
+// #endif
 	CUDAPM_STOP_EVENT(cache_updateTimestamps_bricks);
 }
 
@@ -589,10 +590,8 @@ void GvDataProductionManager< TDataStructure >
  *
  * @return The number of elements in the requests list
  ******************************************************************************/
-template< typename TDataStructure >
-uint GvDataProductionManager< TDataStructure >
-::manageUpdates()
-{
+template <typename TDataStructure>
+uint GvDataProductionManager<TDataStructure>::manageUpdates() {
 	uint totalNbElements = _nodePoolRes.x * _nodePoolRes.y * _nodePoolRes.z;
 
 	uint nbElements = 0;
@@ -636,28 +635,37 @@ uint GvDataProductionManager< TDataStructure >
 	// The output is a packed array, in GPU memory, of only those elements marked as valid.
 	//
 	// Internally, uses cudppScan.
-	CUDPPResult result = cudppCompact( /*handle to CUDPPCompactPlan*/_scanPlan,
+	CUDPPResult result = cudppCompact(
+		/*handle to CUDPPCompactPlan*/_scanPlan,
 		/* OUT : compacted output */thrust::raw_pointer_cast( &(*_updateBufferCompactList)[ 0 ] ),
 		/* OUT :  number of elements valid flags in the d_isValid input array */_d_nbValidRequests,
 		/* input to compact */_updateBufferArray->getPointer(),
 		/* which elements in input are valid */_d_validRequestMasks->getPointer(),
-		/* nb of elements in input */totalNbElements );
+		/* nb of elements in input */totalNbElements
+	);
 	GV_CHECK_CUDA_ERROR( "KERNEL manageUpdates::cudppCompact" );
 	assert( result == CUDPP_SUCCESS );
 
-#ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
+// #ifndef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_DATAPRODUCTIONMANAGER
 	// Get number of elements
 	size_t nbElementsTemp;
-	GV_CUDA_SAFE_CALL( cudaMemcpy( &nbElementsTemp, _d_nbValidRequests, sizeof( size_t ), cudaMemcpyDeviceToHost ) );
+	GV_CUDA_SAFE_CALL(cudaMemcpy(
+		&nbElementsTemp,
+		_d_nbValidRequests,
+		sizeof(size_t),
+		cudaMemcpyDeviceToHost
+	));
 	nbElements = static_cast< uint >( nbElementsTemp );
-#endif
+// #endif
 
 #else // USE_CUDPP_LIBRARY
 
 	nbElements = thrust::copy_if(
 		/*first input*/thrust::device_ptr< uint >( _updateBufferArray->getPointer( 0 ) ),
 		/*last input*/thrust::device_ptr< uint >( _updateBufferArray->getPointer( 0 ) ) + totalNbElements,
-		/*output*/_updateBufferCompactList->begin(), /*predicate*/GvCore::not_equal_to_zero< uint >() ) - _updateBufferCompactList->begin();
+		/*output*/_updateBufferCompactList->begin(),
+		/*predicate*/GvCore::not_equal_to_zero< uint >()
+	) - _updateBufferCompactList->begin();
 
 #endif // USE_CUDPP_LIBRARY
 
@@ -675,9 +683,7 @@ uint GvDataProductionManager< TDataStructure >
  * @return the number of subidivision requests processed.
  ******************************************************************************/
 template< typename TDataStructure >
-uint GvDataProductionManager< TDataStructure >
-::manageSubDivisions( uint numUpdateElems )
-{
+uint GvDataProductionManager<TDataStructure>::manageSubDivisions(uint numUpdateElems) {
 	// Global buffer of requests of used elements only
 	uint* updateCompactList = thrust::raw_pointer_cast( &(*_updateBufferCompactList)[ 0 ] );
 
@@ -688,8 +694,14 @@ uint GvDataProductionManager< TDataStructure >
 	assert( _producers.size() > 0 );
 	assert( _producers[ 0 ] != NULL );
 	ProducerType* producer = _producers[ 0 ];
-	return _nodesCacheManager->genericWrite( updateCompactList, numUpdateElems,
-											/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV, _maxNbNodeSubdivisions, numValidNodes, _dataStructure->_nodePool, producer );
+	return _nodesCacheManager->genericWrite(
+		updateCompactList,
+		numUpdateElems,
+		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV, _maxNbNodeSubdivisions,
+		numValidNodes,
+		_dataStructure->_nodePool,
+		producer
+	);
 }
 
 /******************************************************************************
@@ -700,9 +712,7 @@ uint GvDataProductionManager< TDataStructure >
  * @return the number of load requests processed.
  ******************************************************************************/
 template< typename TDataStructure >
-uint GvDataProductionManager< TDataStructure >
-::manageDataLoadGPUProd( uint numUpdateElems )
-{
+uint GvDataProductionManager<TDataStructure>::manageDataLoadGPUProd(uint numUpdateElems) {
 	// Global buffer of requests of used elements only
 	uint* updateCompactList = thrust::raw_pointer_cast( &(*_updateBufferCompactList)[ 0 ] );
 
@@ -713,93 +723,120 @@ uint GvDataProductionManager< TDataStructure >
 	assert( _producers.size() > 0 );
 	assert( _producers[ 0 ] != NULL );
 	ProducerType* producer = _producers[ 0 ];
-	return _bricksCacheManager->genericWrite( updateCompactList, numUpdateElems,
-		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD, _maxNbBrickLoads, numValidNodes, _dataStructure->_dataPool, _producers[ 0 ] );
+	return _bricksCacheManager->genericWrite(
+		updateCompactList,
+		numUpdateElems,
+		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD,
+		_maxNbBrickLoads,
+		numValidNodes,
+		_dataStructure->_dataPool,
+		_producers[ 0 ]
+	);
 }
 
-#ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
-/******************************************************************************
- * This method handle the subdivisions requests.
- *
- * @param numUpdateElems the number of requests available in the buffer (of any kind).
- *
- * @return the number of subidivision requests processed.
- ******************************************************************************/
-template< typename TDataStructure >
-void GvDataProductionManager< TDataStructure >
-::produceData( uint numUpdateElems )
-{
-	// _nbNodeSubdivisionRequests = manageSubDivisions( numUpdateElems );
-
-	// Global buffer of requests of used elements only
-	uint* updateCompactList = thrust::raw_pointer_cast( &(*_updateBufferCompactList)[ 0 ] );
-
-	// Number of nodes to process
-	uint numValidNodes = ( _nodesCacheManager->_totalNumLoads ) * NodeTileRes::getNumElements();
-
-	// This will ask nodes producer to subdivide nodes
-	assert( _producers.size() > 0 );
-	assert( _producers[ 0 ] != NULL );
-	ProducerType* producer = _producers[ 0 ];
-
-	_nodesCacheManager->genericWrite( updateCompactList, numUpdateElems,
-									/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV, 
-									_maxNbNodeSubdivisions, numValidNodes, _dataStructure->_nodePool, producer );
-
-	_bricksCacheManager->genericWrite( updateCompactList, numUpdateElems,
-									/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD, 
-									_maxNbBrickLoads, numValidNodes, _dataStructure->_dataPool, producer );
-
-	// Get number of elements
-	size_t numElems[ 2 ];
-	GV_CUDA_SAFE_CALL( cudaMemcpy( &numElems, _d_nbValidRequests + 1, 2 * sizeof( size_t ), cudaMemcpyDeviceToHost ) );
-
-	// Limit production according to the time limit.
-	// First, consider all the request are node subdivision
-	if ( _lastProductionTimed )
-	{
-		if ( _totalProducedNodes != 0u )
-		{
-			numElems[ 0 ] = min(
-					static_cast< uint >( numElems[ 0 ] ),
-					max( 100,
-						(uint)( _productionTimeLimit * _totalProducedNodes / _totalNodesProductionTime ) ) );
-		}
-		cudaEventRecord( _startProductionNodes );
-	}
-
-	// Subdivide
-	_nbNodeSubdivisionRequests = _nodesCacheManager->genericWriteAsync( updateCompactList, numUpdateElems,
-									/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV,
-									_maxNbNodeSubdivisions, numValidNodes, _dataStructure->_nodePool, producer,
-									static_cast< uint >( numElems[ 0 ] ) );
-
-	if ( _lastProductionTimed )
-	{
-		cudaEventRecord( _stopProductionNodes );
-		cudaEventRecord( _startProductionBricks );
-	}
-
-	if ( _nbNodeSubdivisionRequests < numUpdateElems )
-	{
-		if ( _lastProductionTimed && _totalProducedNodes != 0 && _totalProducedBricks != 0 )
-		{
-			// Evaluate how much time will be left after nodes subdivision
-			float remainingTime = _productionTimeLimit - _nbNodeSubdivisionRequests * _totalNodesProductionTime / _totalProducedNodes;
-			// Limit the number of request to fit in the remaining time
-			numElems[ 1 ] = min(
-					static_cast< uint >( numElems[ 1 ] ),
-					max( 100,
-						(uint)( remainingTime * _totalProducedBricks / _totalBrickProductionTime ) ) );
-		}
-
-		_nbBrickLoadRequests = _bricksCacheManager->genericWriteAsync( updateCompactList, numUpdateElems,
-									/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD,
-									_maxNbBrickLoads, numValidNodes, _dataStructure->_dataPool, producer,
-									static_cast< uint >( numElems[ 1 ] ) );
-	}
-}
-#endif
+// #ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
+// /******************************************************************************
+//  * This method handle the subdivisions/loads requests.
+//  *
+//  * @param numUpdateElems the number of requests available in the buffer (of any kind).
+//  ******************************************************************************/
+// template <typename TDataStructure>
+// void GvDataProductionManager<TDataStructure>::produceData(uint numUpdateElems) {
+// 	// _nbNodeSubdivisionRequests = manageSubDivisions( numUpdateElems );
+//
+// 	// Global buffer of requests of used elements only
+// 	uint *updateCompactList = thrust::raw_pointer_cast(&(*_updateBufferCompactList)[0]);
+//
+// 	// Number of nodes to process
+// 	uint numValidNodes = _nodesCacheManager->_totalNumLoads * NodeTileRes::getNumElements();
+//
+// 	// This will ask nodes producer to subdivide nodes
+// 	assert( _producers.size() > 0 );
+// 	assert( _producers[ 0 ] != NULL );
+// 	ProducerType* producer = _producers[ 0 ];
+//
+// 	_nodesCacheManager->genericWrite(
+// 		updateCompactList,
+// 		numUpdateElems,
+// 		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV,
+// 		_maxNbNodeSubdivisions,
+// 		numValidNodes,
+// 		_dataStructure->_nodePool,
+// 		producer
+// 	);
+//
+// 	_bricksCacheManager->genericWrite(
+// 		updateCompactList,
+// 		numUpdateElems,
+// 		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD,
+// 		_maxNbBrickLoads,
+// 		numValidNodes,
+// 		_dataStructure->_dataPool,
+// 		producer
+// 	);
+//
+// 	// Get number of elements
+// 	size_t numElems[ 2 ];
+// 	GV_CUDA_SAFE_CALL( cudaMemcpy( &numElems, _d_nbValidRequests + 1, 2 * sizeof( size_t ), cudaMemcpyDeviceToHost ) );
+//
+// 	// Limit production according to the time limit.
+// 	// First, consider all the request are node subdivision
+// 	// if ( _lastProductionTimed )
+// 	// {
+// 	// 	if ( _totalProducedNodes != 0u )
+// 	// 	{
+// 	// 		numElems[ 0 ] = min(
+// 	// 				static_cast< uint >( numElems[ 0 ] ),
+// 	// 				max( 100,
+// 	// 					(uint)( _productionTimeLimit * _totalProducedNodes / _totalNodesProductionTime ) ) );
+// 	// 	}
+// 	// 	cudaEventRecord( _startProductionNodes );
+// 	// }
+//
+// 	// Subdivide
+// 	_nbNodeSubdivisionRequests = _nodesCacheManager->genericWriteAsync(
+// 		updateCompactList,
+// 		numUpdateElems,
+// 		/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_SUBDIV,
+// 		_maxNbNodeSubdivisions,
+// 		numValidNodes,
+// 		_dataStructure->_nodePool,
+// 		producer,
+// 		static_cast<uint>(numElems[0])
+// 	);
+//
+// 	// if ( _lastProductionTimed )
+// 	// {
+// 	// 	cudaEventRecord( _stopProductionNodes );
+// 	// 	cudaEventRecord( _startProductionBricks );
+// 	// }
+//
+// 	if ( _nbNodeSubdivisionRequests < numUpdateElems )
+// 	{
+// 		// if ( _lastProductionTimed && _totalProducedNodes != 0 && _totalProducedBricks != 0 )
+// 		// {
+// 		// 	// Evaluate how much time will be left after nodes subdivision
+// 		// 	float remainingTime = _productionTimeLimit - _nbNodeSubdivisionRequests * _totalNodesProductionTime / _totalProducedNodes;
+// 		// 	// Limit the number of request to fit in the remaining time
+// 		// 	numElems[ 1 ] = min(
+// 		// 			static_cast< uint >( numElems[ 1 ] ),
+// 		// 			max( 100,
+// 		// 				(uint)( remainingTime * _totalProducedBricks / _totalBrickProductionTime ) ) );
+// 		// }
+//
+// 		_nbBrickLoadRequests = _bricksCacheManager->genericWriteAsync(
+// 			updateCompactList,
+// 			numUpdateElems,
+// 			/*type of request to handle*/DataProductionManagerKernelType::VTC_REQUEST_LOAD,
+// 			_maxNbBrickLoads,
+// 			numValidNodes,
+// 			_dataStructure->_dataPool,
+// 			producer,
+// 			static_cast<uint>(numElems[1])
+// 		);
+// 	}
+// }
+// #endif
 
 /******************************************************************************
  * Get the max number of requests of node subdivisions.
@@ -1029,4 +1066,3 @@ void GvDataProductionManager< TDataStructure >::setProductionTimeLimit( float pT
 }
 
 } // namespace GvStructure
-

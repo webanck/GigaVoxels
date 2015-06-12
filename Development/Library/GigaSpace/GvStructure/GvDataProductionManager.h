@@ -643,7 +643,7 @@ protected:
 	 * Flag indicating whether or not the production time is limited.
 	 */
 	bool _isProductionTimeLimited;
-	
+
 	/**
 	 * Flag indicating whether or not the last production was timed.
 	 * It is used to now if the cudaEvent were correctly initialised.
@@ -682,12 +682,12 @@ protected:
 	 */
 	virtual uint manageDataLoadGPUProd( uint numUpdateElems );
 
-#ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
-	/**
-	 * ...
-	 */
-	virtual void produceData( uint numUpdateElems );
-#endif
+// #ifdef GS_USE_OPTIMIZED_NON_BLOCKING_ASYNCHRONOUS_CALLS_PIPELINE_PRODUCER
+// 	/**
+// 	 * ...
+// 	 */
+// 	virtual void produceData( uint numUpdateElems );
+// #endif
 
 	/**************************************************************************
 	 ***************************** PRIVATE SECTION ****************************
