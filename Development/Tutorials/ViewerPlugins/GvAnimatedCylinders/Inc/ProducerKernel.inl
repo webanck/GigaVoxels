@@ -324,15 +324,34 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// Since we work in the range [-1;1] below, the brick size is two time bigger
 	brickSize = make_float3( 1.f ) / make_float3( 1 << regionDepth ) * 2.f;
 
-	// Build the eight brick corners of a cube centered in [0;0;0]
 	float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
-	float3 q001 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z);
-	float3 q010 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z);
-	float3 q011 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z);
-	float3 q100 = make_float3( q000.x,				 q000.y,			   q000.z + brickSize.z);
-	float3 q101 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z + brickSize.z);
-	float3 q110 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z + brickSize.z);
-	float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
+	uint inNb = 0U;
+	uint i, j, k;
+	for(i=0U; i<=brickRes.x; i++)
+		for(j=0U; j<=brickRes.y; j++)
+			for(k=0U; k<=brickRes.z; k++)
+				inNb += isInCylinder(make_float3(
+					q000.x + i*brickSize.x/brickRes.x,
+					q000.y + j*brickSize.y/brickRes.y,
+					q000.z + k*brickSize.z/brickRes.z
+				));
+
+	if(inNb == 0U)
+		return GPUVoxelProducer::GPUVP_CONSTANT;
+	else if(inNb <= (brickRes.x + 1U) * (brickRes.y + 1U) * (brickRes.z + 1U))
+		return GPUVoxelProducer::GPUVP_DATA;
+	else
+		return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+
+	// // Build the eight brick corners of a cube centered in [0;0;0]
+	// float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
+	// float3 q001 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z);
+	// float3 q010 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z);
+	// float3 q011 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z);
+	// float3 q100 = make_float3( q000.x,				 q000.y,			   q000.z + brickSize.z);
+	// float3 q101 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z + brickSize.z);
+	// float3 q110 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z + brickSize.z);
+	// float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
 
 	// Test if any of the eight brick corner lies in the cube
 	// if ( (isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
@@ -343,13 +362,13 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
 	// else return GPUVoxelProducer::GPUVP_DATA;
 
-	if ( isInCylinder( q000 ) || isInCylinder( q001 ) || isInCylinder( q010 ) || isInCylinder( q011 ) ||
-		isInCylinder( q100 ) || isInCylinder( q101 ) || isInCylinder( q110 ) || isInCylinder( q111 ) )
-	{
-		return GPUVoxelProducer::GPUVP_DATA;
-	}
-
-	return GPUVoxelProducer::GPUVP_CONSTANT;
+	// if ( isInCylinder( q000 ) || isInCylinder( q001 ) || isInCylinder( q010 ) || isInCylinder( q011 ) ||
+	// 	isInCylinder( q100 ) || isInCylinder( q101 ) || isInCylinder( q110 ) || isInCylinder( q111 ) )
+	// {
+	// 	return GPUVoxelProducer::GPUVP_DATA;
+	// }
+	//
+	// return GPUVoxelProducer::GPUVP_CONSTANT;
 }
 
 
