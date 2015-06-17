@@ -72,17 +72,18 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 	bool& pRequestEmitted
 ) {
 	// Useful variables initialization
-	uint nodeDepth = 0;
-	float3 nodePosTree = make_float3( 0.0f );
-	pNodeSizeTree = static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
-	float nodeSizeTreeInv = 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );
-	float voxelSizeTree = pNodeSizeTree / static_cast< float >( TVolTreeKernelType::BrickResolution::maxRes );
+	//Warning: works only with uniform subdivision (same resolution in each dimension of the nodes/bricks)
+	uint nodeDepth = 0U;
+	float3 nodePosTree = make_float3(0.f);
+	pNodeSizeTree = 2.f;//TVolTreeKernelType::NodeResolution::maxRes;//The volume tree is centered on the center of the root node, each edge node of the first division beeing of length 1 //what about k_voxelSizeMultiplier ?;
+	float nodeSizeTreeInv = 1.f/pNodeSizeTree;
+	float voxelSizeTree = pNodeSizeTree/static_cast<float>(TVolTreeKernelType::BrickResolution::maxRes);
 
-	uint brickChildAddressEnc  = 0;
-	uint brickParentAddressEnc = 0;
+	uint brickChildAddressEnc  = 0U;
+	uint brickParentAddressEnc = 0U;
 
-	float3 brickChildNormalizedOffset = make_float3( 0.0f );
-	float brickChildNormalizedScale  = 1.0f;
+	float3 brickChildNormalizedOffset 	= make_float3(0.f);
+	float brickChildNormalizedScale  	= 1.f;
 
 	// Initialize the address of the first node in the "node pool".
 	// While traversing the data structure, this address will be
@@ -90,29 +91,25 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 	// It will be used to fetch info of the node stored in then "node pool".
 	uint nodeTileAddress = pVolumeTree._rootAddress;
 
-	//An array of the nodes of different depths.
-	// #define TMP_TEST_MAX_DEPTH k_maxVolTreeDepth
-	// uint *nodesAddresses(new uint[TMP_TEST_MAX_DEPTH]);
-	// bool *nodesTypes(new bool[TMP_TEST_MAX_DEPTH]);
-	// uint lastUpdateDepth(TMP_TEST_MAX_DEPTH);
+	//A boolean to check if the final requested node's request was a brick request or not.
+	bool brick_request;
 
 
 	// Traverse the data structure from root node
 	// until a descent criterion is not fulfilled anymore.
 	bool descentSizeCriteria;
-	do
-	{
+	do {
 		// [ 1 ] - Update size parameters
-		pNodeSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current node size
-		voxelSizeTree		*= 1.0f / static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );	// current voxel size
-		nodeSizeTreeInv		*= static_cast< float >( TVolTreeKernelType::NodeResolution::maxRes );			// current node resolution (nb nodes in a dimension)
+		pNodeSizeTree		/= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);	// current node size
+		voxelSizeTree		/= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);	// current voxel size
+		nodeSizeTreeInv		*= static_cast<float>( TVolTreeKernelType::NodeResolution::maxRes);	// current node resolution (nb nodes in a dimension)
 
 		// [ 2 ] - Update node info
 		//
 		// The goal is to fetch info of the current traversed node from the "node pool"
-		uint3 nodeChildCoordinates = make_uint3( nodeSizeTreeInv * ( pSamplePosTree - nodePosTree ) );
-		uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates );// & nodeChildAddressMask;
-		uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
+		const uint3 nodeChildCoordinates = make_uint3( nodeSizeTreeInv * ( pSamplePosTree - nodePosTree ) );
+		const uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates );// & nodeChildAddressMask;
+		const uint nodeAddress = nodeTileAddress + nodeChildAddressOffset;
 		nodePosTree = nodePosTree + pNodeSizeTree * make_float3( nodeChildCoordinates );
 		// Try to retrieve node from the node pool given its address
 		//pVolumeTree.fetchNode( pNode, nodeTileAddress, nodeChildAddressOffset );
@@ -135,31 +132,12 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		// Update descent condition
 		descentSizeCriteria = ( voxelSizeTree > pConeAperture ) && ( nodeDepth < k_maxVolTreeDepth );
 
-		// //Update addresses array.
-		// nodesAddresses[nodeDepth] = nodeAddress;
-		// nodesTypes[nodeDepth] = pNode.isBrick();
-
 		// ---- Flag used data (the traversed one) ----
 
 		// Set current node as "used"
 		pGpuCache._nodeCacheManager.setElementUsage(nodeTileAddress);
 		// Set current brick as "used"
 		if(pNode.hasBrick()) pGpuCache._brickCacheManager.setElementUsage(pNode.getBrickAddress());
-
-		// //If the node is to old, plan to update it.
-		// if(k_currentTime - pGpuCache._nodeCacheManager._timeStampArray.get(nodeAddress) >= 2U) {
-		// 	pRequestEmitted = true;
-		//
-		// 	//Keep this depth to update parents at the end.
-		// 	// lastUpdateDepth = nodeDepth;
-		//
-		// 	if(pNode.isBrick()) pGpuCache.loadRequest(nodeAddress);
-		// 	else if(pNode.hasSubNodes()) pGpuCache.subDivRequest(nodeAddress);
-		// 	else pRequestEmitted = false;
-		//
-		// 	// break;
-		// 	//TODO: update de l'octree aussi (grille en fil de fer).
-		// }
 
 		// ---- Emit requests if needed (node subdivision or brick loading/producing) ----
 
@@ -170,6 +148,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 			if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
 			{
 				pGpuCache.loadRequest( nodeAddress );
+				brick_request = true;
 				pRequestEmitted = true;
 			}
 			else if ( !pNode.hasSubNodes() && descentSizeCriteria && !pNode.isTerminal() )
@@ -191,6 +170,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 			else if ( ( pNode.isBrick() && !pNode.hasBrick() ) || !( pNode.isInitializated() ) )
 			{
 				pGpuCache.loadRequest( nodeAddress );
+				brick_request = true;
 				pRequestEmitted = true;
 			}
 		}
@@ -200,23 +180,6 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 		// Update octree depth
 		nodeDepth++;
 	} while(descentSizeCriteria && pNode.hasSubNodes());	// END of the data structure traversal
-
-	// //Update addresses array for the last element.
-	// nodesAddresses[nodeDepth] = nodeAddress;
-	// nodesTypes[nodeDepth] = pNode.isBrick();
-
-	// //If a node needed update, update it and it's parents.
-	// while(lastUpdateDepth > 1U && lastUpdateDepth < TMP_TEST_MAX_DEPTH) {
-	// 	//Updating the root node seems to flush its children...
-	// 	// pGpuCache.loadRequest(nodesAddresses[lastUpdateDepth]);
-	// 	if(nodesTypes[lastUpdateDepth]) pGpuCache.loadRequest(nodesAddresses[lastUpdateDepth]);
-	// 	else pGpuCache.subDivRequest(nodesAddresses[lastUpdateDepth]);
-	//
-	// 	lastUpdateDepth--;
-	// }
-	// //Delete the associated array.
-	// delete[] nodesAddresses;
-	// delete[] nodesTypes;
 
 	// Compute sample offset in node tree
 	pSampleOffsetInNodeTree = pSamplePosTree - nodePosTree;
@@ -253,6 +216,70 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 			pBrickSampler._mipMapOn = false;
 			pBrickSampler._brickChildPosInPool  = pBrickSampler._brickParentPosInPool;
 			pBrickSampler._scaleTree2BrickPool *= brickChildNormalizedScale;
+		}
+	}
+
+	//Check node's neighborhood to be sure to have a "regular volume-tree" in case of subdivision.
+	if(pRequestEmitted && nodeDepth > 2U) {
+		//A neighbor is retrieved offsetting the requested position in each direction.
+		uint dim;
+		uint dir;
+		for(dim=0U; dim<3U; dim++) for(dir=0U; dir<2U; dir++) {
+			float sign = (dir == 0U ? -1.f : 1.f);
+			float3 neighborPosTree = pSamplePosTree;
+
+			// neighborPosTree[dim] += sign * pNodeSizeTree;
+			// bool condition = pSamplePosTree[dim] - pNodeSizeTree < 0.f || pSamplePosTree[dim] - pNodeSizeTree > 1.f;
+
+			bool condition;
+			switch(dim) {
+				case 0:
+					neighborPosTree.x += sign * pNodeSizeTree;
+					condition = pSamplePosTree.x - pNodeSizeTree < 0.f || pSamplePosTree.x - pNodeSizeTree > 1.f;
+					break;
+				case 1:
+					neighborPosTree.y += sign * pNodeSizeTree;
+					condition = pSamplePosTree.y - pNodeSizeTree < 0.f || pSamplePosTree.y - pNodeSizeTree > 1.f;
+					break;
+				case 2:
+					neighborPosTree.z += sign * pNodeSizeTree;
+					condition = pSamplePosTree.z - pNodeSizeTree < 0.f || pSamplePosTree.z - pNodeSizeTree > 1.f;
+			}
+
+			if(condition) {
+				uint neighborNodeDepth = 0U;
+				float3 neighborNodePosTree = make_float3(0.f);
+				float neighborNodeSizeTree = TVolTreeKernelType::NodeResolution::maxRes;
+				float neighborNodeSizeTreeInv = 1.f/neighborNodeSizeTree;
+
+				uint neighborNodeTileAddress = pVolumeTree._rootAddress;
+
+				GvStructure::GvNode neighborNode;
+				uint nodeAddress = 0U;
+
+				do {
+					neighborNodeSizeTree /= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);
+					neighborNodeSizeTreeInv	*= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);
+
+					const uint3 nodeChildCoordinates = make_uint3(neighborNodeSizeTreeInv * (neighborPosTree - neighborNodePosTree));
+					const uint nodeChildAddressOffset = TVolTreeKernelType::NodeResolution::toFloat1( nodeChildCoordinates);
+					nodeAddress = neighborNodeTileAddress + nodeChildAddressOffset;
+
+					pVolumeTree.fetchNode(neighborNode, nodeAddress);
+
+					pGpuCache._nodeCacheManager.setElementUsage(neighborNodeTileAddress);
+					if(neighborNode.hasBrick()) pGpuCache._brickCacheManager.setElementUsage(neighborNode.getBrickAddress());
+
+					neighborNodeTileAddress = neighborNode.getChildAddress().x;
+
+					neighborNodeDepth++;
+				} while(neighborNodeDepth < nodeDepth && neighborNode.hasSubNodes());
+
+				if(neighborNodeDepth < nodeDepth) {
+					if(brick_request) pGpuCache.loadRequest(nodeAddress);
+					else pGpuCache.subDivRequest(nodeAddress);
+				}
+			}
 		}
 	}
 }
