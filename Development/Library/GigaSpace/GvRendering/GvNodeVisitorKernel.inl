@@ -220,7 +220,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 	}
 
 	//Check node's neighborhood to be sure to have a "regular volume-tree" in case of subdivision.
-	if(pRequestEmitted && nodeDepth > 2U) {
+	if(pRequestEmitted && nodeDepth > 1U + cAllowedSubdivisionDifference) {
 		//A neighbor is retrieved offsetting the requested position in each direction.
 		uint dim;
 		uint dir;
@@ -228,24 +228,24 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 			float sign = (dir == 0U ? -1.f : 1.f);
 			float3 neighborPosTree = pSamplePosTree;
 
-			// neighborPosTree[dim] += sign * pNodeSizeTree;
-			// bool condition = pSamplePosTree[dim] - pNodeSizeTree < 0.f || pSamplePosTree[dim] - pNodeSizeTree > 1.f;
-
+			//Need to check the boundaries depending on the direction.
 			bool condition;
 			switch(dim) {
 				case 0:
 					neighborPosTree.x += sign * pNodeSizeTree;
-					condition = pSamplePosTree.x - pNodeSizeTree < 0.f || pSamplePosTree.x - pNodeSizeTree > 1.f;
+					condition = neighborPosTree.x > 0.f && neighborPosTree.x < 1.f;
 					break;
 				case 1:
 					neighborPosTree.y += sign * pNodeSizeTree;
-					condition = pSamplePosTree.y - pNodeSizeTree < 0.f || pSamplePosTree.y - pNodeSizeTree > 1.f;
+					condition = neighborPosTree.y > 0.f && neighborPosTree.y < 1.f;
 					break;
 				case 2:
 					neighborPosTree.z += sign * pNodeSizeTree;
-					condition = pSamplePosTree.z - pNodeSizeTree < 0.f || pSamplePosTree.z - pNodeSizeTree > 1.f;
+					condition = neighborPosTree.z > 0.f && neighborPosTree.z < 1.f;
 			}
 
+			//If the neighboor is inside the volume-tree, try to descend the structure until the node is a leaf or is deep enough regarding the original node (avoid a depth level difference of more than 1).
+			//TODO: check more precisely about the subdivion (in case of nodes subdividing in more than 2 in each dimension or about the bricks dimensions in comparison with the nodes).
 			if(condition) {
 				uint neighborNodeDepth = 0U;
 				float3 neighborNodePosTree = make_float3(0.f);
@@ -257,6 +257,7 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 				GvStructure::GvNode neighborNode;
 				uint nodeAddress = 0U;
 
+				//The descent.
 				do {
 					neighborNodeSizeTree /= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);
 					neighborNodeSizeTreeInv	*= static_cast<float>(TVolTreeKernelType::NodeResolution::maxRes);
@@ -273,11 +274,22 @@ __forceinline__ void GvNodeVisitorKernel::visit(
 					neighborNodeTileAddress = neighborNode.getChildAddress().x;
 
 					neighborNodeDepth++;
-				} while(neighborNodeDepth < nodeDepth && neighborNode.hasSubNodes());
+				} while(neighborNodeDepth < nodeDepth - (cAllowedSubdivisionDifference - 1U) && neighborNode.hasSubNodes());
 
-				if(neighborNodeDepth < nodeDepth) {
-					if(brick_request) pGpuCache.loadRequest(nodeAddress);
-					else pGpuCache.subDivRequest(nodeAddress);
+				//If the node and the neighbor node have a depth level difference, request a subdivision.
+				if(neighborNodeDepth < nodeDepth - (cAllowedSubdivisionDifference - 1U)) {
+					pGpuCache.subDivRequest(nodeAddress);
+					//Debug variable to monitor the occurences of the regulararisation process.
+					cRegularisationNb++;
+				//And even if the nodes are on the same level, check if the neighbor needs it's brick.
+				} else if(
+					neighborNodeDepth == nodeDepth &&
+					brick_request &&
+					((neighborNode.isBrick() && !neighborNode.hasBrick()) || !neighborNode.isInitializated())
+				) {
+					pGpuCache.loadRequest(nodeAddress);
+					//Debug variable to monitor the occurences of the regulararisation process.
+					cRegularisationNb++;
 				}
 			}
 		}

@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** 
+/**
  * @version 1.0
  */
 
@@ -64,6 +64,8 @@
 
 namespace GvRendering
 {
+
+__device__ uint cRegularisationNb;
 
 /**
  * Texture references used to read input color/depth buffers from graphics library (i.e. OpenGL)
@@ -380,7 +382,7 @@ surface< void, cudaSurfaceType2D > _depthSurface;
 					return k_renderViewContext._clearDepth;		// TO DO : ?
 				}
 		}
-					
+
 		// Decode depth from Z-buffer
 		uint tmpival = __float_as_int( tmpfval );
 		tmpival = ( tmpival & 0xFFFFFF00 ) >> 8;
