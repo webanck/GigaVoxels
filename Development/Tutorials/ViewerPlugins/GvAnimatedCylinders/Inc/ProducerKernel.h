@@ -40,6 +40,8 @@
 #include <GvCore/GvLocalizationInfo.h>
 #include <GvCore/GPUVoxelProducer.h>
 
+#include <GvRendering/GvRendererHelpersKernel.h> //needed for the debug variable cRegularisationNb
+
 // CUDA
 #include <cuda_runtime.h>
 
@@ -62,6 +64,12 @@ __constant__ float cShapeOpacity;
  */
 __constant__ uint cElapsedSeconds;
 __constant__ uint cElapsedMiliseconds;
+
+/**
+ * Displacement map texture for the cylinder.
+ */
+texture<float, cudaTextureType2D> cDisplacementMap;
+float *cDisplacementMapData;
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -249,7 +257,7 @@ private:
 	 *
 	 * @param pPoint The point to test.
 	 *
-	 * @return Wheter the point is insied the sphere.
+	 * @return Wheter the point is inside the sphere.
 	 */
 	__device__
 	static inline bool isInSphere(const float3 pPoint);
@@ -259,7 +267,7 @@ private:
 	 *
 	 * @param pPoint The point to test.
 	 *
-	 * @return Wheter the point is insied the cube.
+	 * @return Wheter the point is inside the cube.
 	 */
 	__device__
 	static inline bool isInCube(const float3 pPoint);
@@ -272,7 +280,7 @@ private:
 	 * @param pCenter2 The center of the second base of the cylinder.
 	 * @param pRadius The radius of the cylinder.
 	 *
-	 * @return Wheter the point is insied the cylinder.
+	 * @return Wheter the point is inside the cylinder.
 	 */
 	__device__
 	static inline bool isInCylinder(const float3 pPoint, const float3 pCenter1, const float3 pCenter2, const float pRadius);

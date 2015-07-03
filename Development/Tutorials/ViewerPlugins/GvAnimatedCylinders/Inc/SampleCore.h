@@ -744,6 +744,8 @@ public:
 	virtual void updateElapsedTime();
 
 	virtual bool cacheFlushing();
+	virtual void updateDisplacementMap();
+	//TODO:delete the displacement map when finished
 
 	/**************************************************************************
 	 **************************** PROTECTED SECTION ***************************

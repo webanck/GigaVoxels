@@ -370,8 +370,13 @@ void SampleCore::draw()
 	glPopMatrix();
 
 	// Render
+	updateDisplacementMap();
+	uint regularisationNb = 0U;
+	cudaMemcpyToSymbol(cRegularisationNb, &regularisationNb, sizeof(regularisationNb), 0, cudaMemcpyHostToDevice);
 	for(uint i=0U; i<15U; i++)
 		_pipeline->execute( modelMatrix, viewMatrix, projectionMatrix, viewport );
+	cudaMemcpyFromSymbol(&regularisationNb, cRegularisationNb, sizeof(regularisationNb), 0, cudaMemcpyDeviceToHost);
+	std::cout << "Regularisations: " << regularisationNb << std::endl;
 
 	if ( _graphicsEnvironment->getType() != 0 )
 	{
@@ -1438,8 +1443,8 @@ bool SampleCore::reloadShader( unsigned int pShaderType )
 void SampleCore::updateElapsedTime() {
 	static clock_t instant = clock();
 
-	clock_t newInstant = clock();
-	_elapsedMiliseconds += double(newInstant - instant)/CLOCKS_PER_SEC*1000.f;
+	const clock_t newInstant = clock();
+	_elapsedMiliseconds += (static_cast<float>(newInstant - instant)/static_cast<float>(CLOCKS_PER_SEC)) * 1000.f;
 
 	_elapsedSeconds += _elapsedMiliseconds/1000U;
 	_elapsedMiliseconds %= 1000U;
@@ -1460,4 +1465,66 @@ bool SampleCore::cacheFlushing() {
 		clearCache();
 		return true;
 	// } else return false;
+}
+
+void SampleCore::updateDisplacementMap() {
+	//Parts in each dimension of the map (minimum 1).
+	const size_t width = 1000U;
+	const size_t height = 1000U;
+	//Total number of cells in the map.
+	const uint nbElelements = width*height;
+	//Parameterization of the waves.
+	const float loopSeconds = 10.f;
+	const uint verticalWaves = 1U;
+	const uint horizontalWaves = 0U;
+
+	//Memory management variables.
+	static bool initialized = false;
+	static float data[nbElelements];
+	static size_t offset;
+	static size_t pitch;
+
+	//First call to the function: initialize memory.
+	if(!initialized) {
+		initialized = true;
+		GV_CUDA_SAFE_CALL(cudaMallocPitch((void**)&cDisplacementMapData, &pitch, width * sizeof(float), height));
+		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+		GV_CUDA_SAFE_CALL(cudaBindTexture2D(&offset, &cDisplacementMap, cDisplacementMapData, &channelDesc, width, height, pitch));
+		// Set mutable properties:
+		cDisplacementMap.normalized=true;
+		cDisplacementMap.addressMode[0]=cudaAddressModeWrap;
+		cDisplacementMap.addressMode[1]=cudaAddressModeWrap;
+		cDisplacementMap.filterMode= cudaFilterModePoint;
+	}
+
+	//Set the displacement map values.
+	const float loopPart = 3.14f * (static_cast<float>(_elapsedSeconds) + static_cast<float>(_elapsedMiliseconds) / 1000.f) / loopSeconds;
+	// std::cout << "seconds=" << _elapsedSeconds << std::endl;
+	// std::cout << "mseconds=" << _elapsedMiliseconds << std::endl;
+	// std::cout << "loopPart=" << loopPart << std::endl;
+	//////////////////////////////////////////////////////////////////////waving patern as a 1 dimension line
+	// for(uint i=0U; i<nbElelements; i++) data[i] = fabs(sin(static_cast<float>(i)+loopPart));
+	//////////////////////////////////////////////////////////////////////waving patern as a 2 dimensions grid
+	for(uint i=0U; i<height; i++) for(uint j=0U; j<width; j++) {
+		const float verticalFrequency 	= 3.14f*static_cast<float>(verticalWaves)/static_cast<float>(height);
+		const float verticalHeight 		= (
+			verticalWaves > 0U ?
+			(1.f + sin(static_cast<float>(i)*verticalFrequency+loopPart))/2.f :
+			1.f
+		);
+		const float horizontalFrequency = 3.14f*static_cast<float>(horizontalWaves)/static_cast<float>(width);
+		const float horizontalHeight 	= (
+			horizontalWaves > 0U ?
+			(1.f + sin(static_cast<float>(j)*horizontalFrequency+loopPart))/2.f :
+			1.f
+		);
+
+		data[i*width + j] = 0.5f*verticalHeight + 0.5f*horizontalHeight;
+		// std::cout << " " << data[i*width + j];
+	}
+	// std::cout << std::endl;
+	//////////////////////////////////////////////////////////////////////
+
+	// Copy data from host to device
+	GV_CUDA_SAFE_CALL(cudaMemcpy2D((void*)cDisplacementMapData, pitch, (void*)data, sizeof(float)*width, sizeof(float)*width, height, cudaMemcpyHostToDevice));
 }

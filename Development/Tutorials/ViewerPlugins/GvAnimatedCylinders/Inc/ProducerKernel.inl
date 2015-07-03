@@ -313,7 +313,8 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	__shared__ uint3 levelRes;
 	__shared__ float3 levelResInv;
 
-	brickRes = BrickRes::get();
+	// brickRes = BrickRes::get();
+	brickRes = dim3(9U);
 
 	levelRes = make_uint3( 1 << regionDepth ) * brickRes;
 	levelResInv = make_float3( 1.f ) / make_float3( levelRes );
@@ -324,6 +325,7 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// Since we work in the range [-1;1] below, the brick size is two time bigger
 	brickSize = make_float3( 1.f ) / make_float3( 1 << regionDepth ) * 2.f;
 
+	////////////////////////////////////////////// variable level of subdivision to check node data type
 	float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
 	uint inNb = 0U;
 	uint i, j, k;
@@ -338,11 +340,11 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 
 	if(inNb == 0U)
 		return GPUVoxelProducer::GPUVP_CONSTANT;
-	else if(inNb <= (brickRes.x + 1U) * (brickRes.y + 1U) * (brickRes.z + 1U))
+	else if(inNb < (brickRes.x + 1U) * (brickRes.y + 1U) * (brickRes.z + 1U))
 		return GPUVoxelProducer::GPUVP_DATA;
 	else
 		return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-
+	////////////////////////////////////////////// subdivision to check node data type limited to corners
 	// // Build the eight brick corners of a cube centered in [0;0;0]
 	// float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
 	// float3 q001 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z);
@@ -352,16 +354,16 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// float3 q101 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z + brickSize.z);
 	// float3 q110 = make_float3( q000.x,				 q000.y + brickSize.y, q000.z + brickSize.z);
 	// float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
-
-	// Test if any of the eight brick corner lies in the cube
-	// if ( (isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
-	// 	isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
-	// ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	// else if(!(isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
-	// 		isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
-	// ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	// else return GPUVoxelProducer::GPUVP_DATA;
-
+	//
+	// // // Test if any of the eight brick corner lies in the cube
+	// // if ( (isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
+	// // 	isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+	// // else if(!(isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
+	// // 		isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+	// // else return GPUVoxelProducer::GPUVP_DATA;
+	//
 	// if ( isInCylinder( q000 ) || isInCylinder( q001 ) || isInCylinder( q010 ) || isInCylinder( q011 ) ||
 	// 	isInCylinder( q100 ) || isInCylinder( q101 ) || isInCylinder( q110 ) || isInCylinder( q111 ) )
 	// {
@@ -369,6 +371,7 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// }
 	//
 	// return GPUVoxelProducer::GPUVP_CONSTANT;
+	////////////////////////////////////////////
 }
 
 
@@ -396,7 +399,19 @@ inline bool ProducerKernel<TDataStructureType>::isInCube(const float3 pPoint) {
 
 
 
-
+// template <typename TDataStructureType>
+// __device__
+// inline bool ProducerKernel<TDataStructureType>::isInCylinder(
+// 	const float3 pPoint,
+// 	const float3 pCenter1,
+// 	const float3 pCenter2,
+// 	const float pRadius,
+// 	const float3 upVector,
+// 	const float pAngle
+// ) {
+// 	// texture<float, 2> cDisplacementMap
+// 	return false;
+// }
 
 template <typename TDataStructureType>
 __device__
@@ -415,19 +430,48 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(
 	const float3 projected 			= pCenter1 + axis * scalar;
 	const float3 projectedToPoint 	= pPoint - projected;
 
+	// const float3 upVector = make_float3()
+	// const float u = ; //horizontal/angle parameterization
+	// const float v = scalar/height; //vertical parameterization
+
+
 	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= pRadius;
 }
+
+// template <typename TDataStructureType>
+// __device__
+// inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
+// 	double v = 0.7f;//0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
+// 	return isInCylinder(
+// 		pPoint,
+// 		make_float3(-0.5f),
+// 		make_float3(0.5f),
+// 		v //0.2f
+// 	);
+// }
 
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
-	double v = 0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
-	return isInCylinder(
-		pPoint,
-		make_float3(-0.5f),
-		make_float3(0.5f),
-		v //0.2f
-	);
+	//The default cylinder's first base center is placed on the floor at the origin, the second up of 1z unit and has a unit radius influenced by the displacement map.
+	const float3 center1			= make_float3(0.f);
+	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
+	const float height 				= 1.f;
+	const float3 axis 				= make_float3(0.f, 0.f, 1.f);
+	const float3 baseToPoint 		= pPoint - center1;
+	const float scalar 				= dot(baseToPoint, axis);
+	const float3 projected 			= center1 + axis * scalar;
+	const float3 projectedToPoint 	= pPoint - projected;
+
+	//WARNING! A on the cylinder's axis has no horizontal/angle parameterization.
+	if(length(projectedToPoint) <= 0.f) return false;
+
+	const float u = acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)))/3.14f; //horizontal/angle parameterization
+	const float v = scalar/height; //vertical parameterization
+	const float displacement = tex2D(cDisplacementMap, u, v);
+	const float radius = 0.5f * displacement;//clamp(displacement, 0.f, 1000.f)/1000.f;
+
+	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= radius;
 }
 
 template <typename TDataStructureType>
@@ -458,14 +502,38 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(
 		return normalize(projectedToPoint);
 }
 
+// template <typename TDataStructureType>
+// __device__
+// inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
+// 	double v = 0.7f;//0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
+// 	return cylinderNormal(
+// 		pPoint,
+// 		make_float3(-0.5f),
+// 		make_float3(0.5f),
+// 		v //0.2f
+// 	);
+// }
+
 template <typename TDataStructureType>
 __device__
 inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
-	double v = 0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
-	return cylinderNormal(
-		pPoint,
-		make_float3(-0.5f),
-		make_float3(0.5f),
-		v //0.2f
-	);
+	//This function should be called knowing we are already on or in the cylinder.
+	const float3 center1			= make_float3(0.f);
+	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
+	const float height 				= 1.f;
+	const float3 axis 				= make_float3(0.f, 0.f, 1.f);
+	const float3 baseToPoint 		= pPoint - center1;
+	const float scalar 				= dot(baseToPoint, axis);
+	const float3 projected 			= center1 + axis * scalar;
+	const float3 projectedToPoint 	= pPoint - projected;
+
+	const float epsilon = 0.01f;
+	const float heightRatio = scalar/height;
+
+	if(1.f - epsilon < heightRatio && heightRatio < 1.f + epsilon)
+		return axis;
+	else if(0.f - epsilon < heightRatio && heightRatio < 0.f + epsilon)
+		return -1.f * axis;
+	else
+		return normalize(projectedToPoint);
 }
