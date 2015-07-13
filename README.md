@@ -111,7 +111,7 @@ endif ()
 Secondly, uncomment the compute capability corresponding to your GPU in the following files:
 - [Development/Library/CMakeLists.txt](Development/Library/CMakeLists.txt)
 - [Development/Tools/CMakeLists.txt](Development/Tools/CMakeLists.txt)
-- [Development/Tutorials/](Development/Tutorials/)
+- [Development/Tutorials/ViewerPlugins/CMakeLists.txt](Development/Tutorials/ViewerPlugins/CMakeLists.txt)
 - [Development/Tutorials/Demos/CMakeLists.txt](Development/Tutorials/Demos/CMakeLists.txt)
 
 To help you, the lines of interest are looking like that:
