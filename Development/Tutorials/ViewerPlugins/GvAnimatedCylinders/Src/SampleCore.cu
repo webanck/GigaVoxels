@@ -139,6 +139,9 @@ SampleCore::SampleCore()
  ******************************************************************************/
 SampleCore::~SampleCore()
 {
+	//Unbind and delete the displacement map.
+	updateDisplacementMap(true);
+
 	// Disconnect all registered graphics resources
 	/*_pipeline->editRenderer()*/_renderer->resetGraphicsResources();
 
@@ -370,7 +373,7 @@ void SampleCore::draw()
 	glPopMatrix();
 
 	// Render
-	updateDisplacementMap();
+	updateDisplacementMap(false);
 	uint regularisationNb = 0U;
 	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cRegularisationNb, &regularisationNb, sizeof(regularisationNb), 0, cudaMemcpyHostToDevice));
 	for(uint i=0U; i<15U; i++)
@@ -1467,7 +1470,7 @@ bool SampleCore::cacheFlushing() {
 	// } else return false;
 }
 
-void SampleCore::updateDisplacementMap() {
+void SampleCore::updateDisplacementMap(bool destroy) {
 	//Parts in each dimension of the map (minimum 1).
 	const size_t width = 1000U;
 	const size_t height = 1000U;
@@ -1483,6 +1486,13 @@ void SampleCore::updateDisplacementMap() {
 	static float data[nbElelements];
 	static size_t offset;
 	static size_t pitch;
+
+	//Finalizing call: free memory if necessary.
+	if(initialized && destroy) {
+		GV_CUDA_SAFE_CALL(cudaUnbindTexture(cDisplacementMap));
+		GV_CUDA_SAFE_CALL(cudaFree(cDisplacementMapData));
+		return;
+	}
 
 	//First call to the function: initialize memory.
 	if(!initialized) {
