@@ -1490,6 +1490,8 @@ void SampleCore::updateDisplacementMap() {
 		GV_CUDA_SAFE_CALL(cudaMallocPitch((void**)&cDisplacementMapData, &pitch, width * sizeof(float), height));
 		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
 		GV_CUDA_SAFE_CALL(cudaBindTexture2D(&offset, &cDisplacementMap, cDisplacementMapData, &channelDesc, width, height, pitch));
+		GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cDisplacementMapWidth, &width, sizeof(width), 0, cudaMemcpyHostToDevice));
+		GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cDisplacementMapHeight, &height, sizeof(height), 0, cudaMemcpyHostToDevice));
 		// Set mutable properties:
 		cDisplacementMap.normalized=true;
 		cDisplacementMap.addressMode[0]=cudaAddressModeWrap;

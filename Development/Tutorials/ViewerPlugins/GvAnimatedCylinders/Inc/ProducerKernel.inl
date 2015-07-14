@@ -461,6 +461,41 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pP
 	//Normal of the under cup.
 	else if(heightRatio < 0.f + epsilon)
 		return -1.f * axis;
-	else
-		return normalize(projectedToPoint);
+	//Other normals.
+	else {
+		//WARNING! A point on the cylinder's axis has no horizontal/angle parameterization, the axis is chosen.
+		if(length(projectedToPoint) <= 0.f) return axis;
+
+		//Horizontal/angle parameterization (texture interpolation, cylinder curvature and toring).
+		const float elementaryWidth = 1.f/static_cast<float>(cDisplacementMapWidth);
+		const float sign = (projectedToPoint.y > 0.f ? 1.f : -1.f); //determinant (ad - bc with a = 1 and b = 0) for oriented surface
+		const float angle = sign * acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)));
+		const float u = angle/(2.f*PRODUCER_PI);
+		//Vertical parameterization (texture interpolation, no curvature and toring).
+		const float elementaryHeight = 1.f/static_cast<float>(cDisplacementMapHeight);
+		const float v = scalar/height;
+
+		//Horizontal part of the normal.
+		const float u0 = u - elementaryWidth/2.f;
+		const float u1 = u + elementaryWidth/2.f;
+		const float r0 = tex2D(cDisplacementMap, u0, v);
+		const float r1 = tex2D(cDisplacementMap, u1, v);
+		const float2 p0 = make_float2(r0*cos(u0*2.f*PRODUCER_PI), r0*sin(u0*2.f*PRODUCER_PI));
+		const float2 p1 = make_float2(r1*cos(u1*2.f*PRODUCER_PI), r1*sin(u1*2.f*PRODUCER_PI));
+		const float2 vector = p1 - p0;
+		const float uRatio = dot(p0, vector)/(r0*length(vector));
+		const float3 uNormal = make_float3(normalize(uRatio*p0 + (1.f-uRatio)*p1), 0.f);
+		//Horizontal part of the normal.
+		const float v0 = v - elementaryHeight/2.f;
+		const float v1 = v + elementaryHeight/2.f;
+		const float h0 = tex2D(cDisplacementMap, u, v0);
+		const float h1 = tex2D(cDisplacementMap, u, v1);
+		const float3 vNormal = normalize(make_float3(
+			(h1 - h0)*cos(angle),
+			(h1 - h0)*sin(angle),
+			-elementaryHeight
+		));
+
+		return normalize(uNormal + vNormal);
+	}
 }
