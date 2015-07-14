@@ -312,10 +312,10 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 ) {
 	// Limit the depth.
 	// Currently, 32 is the max depth of the GigaVoxels engine.
-	if ( regionDepth >= 32 )
-	{
-		return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	}
+	if(regionDepth >= 32) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
+
+	//Force a specific minimal depth (if the condition value is over 1U).
+	if(regionDepth < 3U) return GPUVoxelProducer::GPUVP_DATA;
 
 	// Shared memory declaration
 	__shared__ uint3 brickRes;
