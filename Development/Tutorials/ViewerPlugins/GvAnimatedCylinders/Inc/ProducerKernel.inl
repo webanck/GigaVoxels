@@ -198,14 +198,15 @@ inline uint ProducerKernel<TDataStructureType>::produceData(
 	__shared__ float3 levelResInv;
 	__shared__ int3 brickPos;
 	__shared__ float3 brickPosF;
+	__shared__ uint3 subdivRes; //number of subdivisions in each dimension for the samples
 
 	// Compute useful variables used for retrieving positions in 3D space
 	brickRes = BrickRes::get();
-	levelRes = make_uint3( 1 << parentLocDepth.get() ) * brickRes;
-	levelResInv = make_float3( 1.0f ) / make_float3( levelRes );
-
-	brickPos = make_int3( parentLocCode.get() * brickRes ) - BorderSize;
-	brickPosF = make_float3( brickPos ) * levelResInv;
+	levelRes = make_uint3(1 << parentLocDepth.get()) * brickRes;
+	levelResInv = make_float3(1.0f)/make_float3(levelRes); //the voxel's size
+	brickPos = make_int3(parentLocCode.get() * brickRes) - BorderSize;
+	brickPosF = make_float3(brickPos) * levelResInv;
+	subdivRes = dim3(9U);
 
     // The original KERNEL execution configuration on the HOST has a 2D block size :
 	// dim3 blockSize( 16, 8, 1 );
@@ -227,63 +228,66 @@ inline uint ProducerKernel<TDataStructureType>::produceData(
     // - number of threads
     const uint nbThreads = blockDim.x;
     // - global thread index in the block (linearized)
-    //const int threadIndex1D = threadIdx.z * ( blockDim.x * blockDim.y ) + ( threadIdx.y * blockDim.x + threadIdx.x ); // written in FMAD-style
-    const int threadIndex1D = threadIdx.x;
-    uint3 locOffset;
-    for ( int index = threadIndex1D; index < nbVoxels; index += nbThreads )
-    {
-       // Transform 1D per blocks global thread index to associated threads 3D voxel position
-       locOffset.x = index % elemSize.x;
-	   locOffset.y = ( index / elemSize.x ) % elemSize.y;
-	   locOffset.z = index / ( elemSize.x * elemSize.y );
+    const uint threadIndex1D = threadIdx.x;
 
-	   // Position of the current voxel's center (relative to the brick)
-	   float3 voxelPosInBrickF = ( make_float3( locOffset ) + 0.5f ) * levelResInv;
-	   // Position of the current voxel's center (absolute, in [0.0;1.0] range)
-	   float3 voxelPosF = brickPosF + voxelPosInBrickF;
-	   // Position of the current voxel's center (scaled to the range [-1.0;1.0])
-	   float3 posF = voxelPosF * 2.0f - 1.0f;
+    for(uint index = threadIndex1D; index < nbVoxels; index += nbThreads) {
+		// Transform 1D per blocks global thread index to associated threads 3D voxel's corner position
+		const uint3 locOffset = make_uint3(
+			index % elemSize.x,
+			(index/elemSize.x) % elemSize.y,
+			index/(elemSize.x * elemSize.y)
+		);
 
-	   float4 voxelColor = make_float4( cShapeColor.x, cShapeColor.y, cShapeColor.z, 0.0f );
+		//Position of the voxel's corner (scaled to the range [-1.0;1.0])
+		const float3 q000 = (brickPosF + make_float3(locOffset) * levelResInv) * 2.f - 1.f;
+		uint inNb = 0U;
+		uint i, j, k;
+		for(i=0U; i<=subdivRes.x; i++)
+			for(j=0U; j<=subdivRes.y; j++)
+				for(k=0U; k<=subdivRes.z; k++)
+					inNb += isInObject(make_float3(
+						q000.x + i*levelResInv.x/subdivRes.x,
+						q000.y + j*levelResInv.y/subdivRes.y,
+						q000.z + k*levelResInv.z/subdivRes.z
+					));
 
-		// //for the sphere
-		// float4 voxelNormal = make_float4( normalize( posF ), 1.0f );
-
-		// //for the cube
-		// float m;//	= max(fabsf(posF.x), fabsf(posF.y), fabsf(posF.z));
-		// if(fabsf(posF.x) >= fabsf(posF.y) && fabsf(posF.x) >= fabsf(posF.z))
-		// 	m = fabsf(posF.x);
-		// else if(fabsf(posF.y) >= fabsf(posF.x) && fabsf(posF.y) >= fabsf(posF.z))
-		// 	m = fabsf(posF.y);
-		// else
-		// 	m = fabsf(posF.z);
-		// float4 voxelNormal = make_float4( normalize(make_float3(
-		// 	((float)(powf(-1.f, posF.x < 0.0f) * posF.x == m)),
-		// 	((float)(powf(-1.f, posF.y < 0.0f) * posF.y == m)),
-		// 	((float)(powf(-1.f, posF.z < 0.0f) * posF.z == m)))),
-		// 	1.0f
+		// Alpha pre-multiplication used to avoid the "color bleeding" effect
+		/////////////////////////////////////////////////////////////////////////////////////////////////////
+		// //The voxel opacity ratio is evaluated proportionaly to the number of samples inside the object.
+		// const float ratio = cShapeOpacity * static_cast<float>((subdivRes.x + 1U) * (subdivRes.y + 1U) * (subdivRes.z + 1U)) / static_cast<float>(inNb);
+		// const float4 voxelColor = make_float4(
+		// 	cShapeColor.x * ratio,
+		// 	cShapeColor.y * ratio,
+		// 	cShapeColor.z * ratio,
+		// 	ratio
 		// );
+		/////////////////////////////////////////////////////////////////////////////////////////////////////
+		//The voxel is of cShapeOpacity if more than half the samples taken are inside the object.
+		const float4 voxelColor = (
+			inNb >= ((subdivRes.x + 1U) * (subdivRes.y + 1U) * (subdivRes.z + 1U))/2U ?
+			make_float4(
+				cShapeColor.x * cShapeOpacity,
+				cShapeColor.y * cShapeOpacity,
+				cShapeColor.z * cShapeOpacity,
+				cShapeOpacity
+			) :
+			make_float4(0.f)
+		);
+		/////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		//for the cylinder
-		const float4 voxelNormal = make_float4(cylinderNormal(posF), 1.f);
+		//Computation of the normal if the voxel is visible.
+		const float4 voxelNormal = (
+			voxelColor.w > 0.f ?
+			make_float4(objectNormal(q000 + 0.5f*levelResInv), 1.f) :
+			make_float4(0.f)
+		);
 
-	   // Test if the voxel is located inside the unit cube.
-	   if ( isInCylinder( posF ) )
-	   {
-		   voxelColor.w = cShapeOpacity;
-	   }
-
-	   // Alpha pre-multiplication used to avoid the "color bleeding" effect
-	   voxelColor.x *= voxelColor.w;
-	   voxelColor.y *= voxelColor.w;
-	   voxelColor.z *= voxelColor.w;
-
-	   // Compute the new element's address
-	   uint3 destAddress = newElemAddress + locOffset;
-	   // Write the voxel's color in the first field
-	   dataPool.template setValue< 0 >( destAddress, voxelColor );
-	   // Write the voxel's normal in the second field
-	   dataPool.template setValue< 1 >( destAddress, voxelNormal );
+		// Compute the new element's address
+		const uint3 destAddress = newElemAddress + locOffset;
+		// Write the voxel's color in the first field
+		dataPool.template setValue<0>(destAddress, voxelColor);
+		// Write the voxel's normal in the second field
+		dataPool.template setValue<1>(destAddress, voxelNormal);
 	}
 
 	return 0;
@@ -319,8 +323,8 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 	__shared__ uint3 levelRes;
 	__shared__ float3 levelResInv;
 
-	// brickRes = BrickRes::get();
-	brickRes = dim3(9U);
+
+	brickRes = BrickRes::get();
 
 	levelRes = make_uint3( 1 << regionDepth ) * brickRes;
 	levelResInv = make_float3( 1.f ) / make_float3( levelRes );
@@ -331,26 +335,28 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 	// Since we work in the range [-1;1] below, the brick size is two time bigger
 	brickSize = make_float3( 1.f ) / make_float3( 1 << regionDepth ) * 2.f;
 
-	////////////////////////////////////////////// variable level of subdivision to check node data type
-	float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////// //Variable level of subdivision to check node data type.
+	__shared__ uint3 subdivRes; //number of subdivisions in each dimension for the samples
+	subdivRes = dim3(9U);
+	const float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
 	uint inNb = 0U;
 	uint i, j, k;
-	for(i=0U; i<=brickRes.x; i++)
-		for(j=0U; j<=brickRes.y; j++)
-			for(k=0U; k<=brickRes.z; k++)
-				inNb += isInCylinder(make_float3(
-					q000.x + i*brickSize.x/brickRes.x,
-					q000.y + j*brickSize.y/brickRes.y,
-					q000.z + k*brickSize.z/brickRes.z
+	for(i=0U; i<=subdivRes.x; i++)
+		for(j=0U; j<=subdivRes.y; j++)
+			for(k=0U; k<=subdivRes.z; k++)
+				inNb += isInObject(make_float3(
+					q000.x + i*brickSize.x/subdivRes.x,
+					q000.y + j*brickSize.y/subdivRes.y,
+					q000.z + k*brickSize.z/subdivRes.z
 				));
 
 	if(inNb == 0U)
 		return GPUVoxelProducer::GPUVP_CONSTANT;
-	else if(inNb < (brickRes.x + 1U) * (brickRes.y + 1U) * (brickRes.z + 1U))
+	else if(inNb < (subdivRes.x + 1U) * (subdivRes.y + 1U) * (subdivRes.z + 1U))
 		return GPUVoxelProducer::GPUVP_DATA;
 	else
 		return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	////////////////////////////////////////////// subdivision to check node data type limited to corners
+	///////////////////////////////////////////////////////////////////////////////////////////////////////// // //Subdivision to check node data type limited to corners.
 	// // Build the eight brick corners of a cube centered in [0;0;0]
 	// float3 q000 = make_float3( regionCoords * brickRes ) * levelResInv * 2.f - 1.f;
 	// float3 q001 = make_float3( q000.x + brickSize.x, q000.y,			   q000.z);
