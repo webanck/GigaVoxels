@@ -73,13 +73,17 @@ inline void ProducerKernel< TDataStructureType >
  *
  * @return A feedback value that the user can return.
  ******************************************************************************/
-template< typename TDataStructureType >
-template< typename GPUPoolKernelType >
+template <typename TDataStructureType>
+template <typename GPUPoolKernelType>
 __device__
-inline uint ProducerKernel< TDataStructureType >
-::produceData( GPUPoolKernelType& nodePool, uint requestID, uint processID, uint3 newElemAddress,
-			  const GvCore::GvLocalizationInfo& parentLocInfo, Loki::Int2Type< 0 > )
-{
+inline uint ProducerKernel<TDataStructureType>::produceData(
+	GPUPoolKernelType& nodePool,
+	uint requestID,
+	uint processID,
+	uint3 newElemAddress,
+	const GvCore::GvLocalizationInfo& parentLocInfo,
+	Loki::Int2Type<0>
+) {
 	// NOTE :
 	// In this method, you are inside a node tile.
 	// The goal is to determine, for each node of the node tile, which type of data it holds.
@@ -94,52 +98,50 @@ inline uint ProducerKernel< TDataStructureType >
 	const GvCore::GvLocalizationInfo::DepthType *parentLocDepth = &parentLocInfo.locDepth;
 
 	// Process ID gives the 1D index of a node in the current node tile
-	if ( processID < NodeRes::getNumElements() )
-	{
-		// First, compute the 3D offset of the node in the node tile
-		uint3 subOffset = NodeRes::toFloat3( processID );
+	if(processID >= NodeRes::getNumElements()) return 0U;
 
-		// Node production corresponds to subdivide a node tile.
-		// So, based on the index of the node, find the node child.
-		// As we want to sudbivide the curent node, we retrieve localization information
-		// at the next level
-		uint3 regionCoords = parentLocCode->addLevel< NodeRes >( subOffset ).get();
-		uint regionDepth = parentLocDepth->addLevel().get();
+	// First, compute the 3D offset of the node in the node tile
+	const uint3 subOffset = NodeRes::toFloat3(processID);
 
-		// Create a new node for which you will have to fill its information.
-		GvStructure::GvNode newnode;
-		newnode.childAddress = 0;
-		newnode.brickAddress = 0;
+	// Node production corresponds to subdivide a node tile.
+	// So, based on the index of the node, find the node child.
+	// As we want to sudbivide the curent node, we retrieve localization information
+	// at the next level
+	const uint3 regionCoords = parentLocCode->addLevel<NodeRes>(subOffset).get();
+	const uint regionDepth = parentLocDepth->addLevel().get();
 
-		// Call what we call an oracle that will determine the type of the region of the node accordingly
-		GPUVoxelProducer::GPUVPRegionInfo nodeinfo = getRegionInfo( regionCoords, regionDepth );
+	// Create a new node for which you will have to fill its information.
+	GvStructure::GvNode newnode;
+	newnode.childAddress = 0U;
+	newnode.brickAddress = 0U;
 
-		// Now that the type of the region is found, fill the new node information
-		if ( nodeinfo == GPUVoxelProducer::GPUVP_CONSTANT )
-		{
-			newnode.setTerminal( true );
-		}
-		else if ( nodeinfo == GPUVoxelProducer::GPUVP_DATA )
-		{
+	// Call what we call an oracle that will determine the type of the region of the node accordingly
+	GPUVoxelProducer::GPUVPRegionInfo nodeinfo = getRegionInfo(regionCoords, regionDepth);
+
+	// Now that the type of the region is found, fill the new node information
+	switch(nodeinfo) {
+		case GPUVoxelProducer::GPUVP_CONSTANT:
+			newnode.setTerminal(true);
+			break;
+		case GPUVoxelProducer::GPUVP_DATA:
 			newnode.setStoreBrick();
-			newnode.setTerminal( false );
-		}
-		else if ( nodeinfo == GPUVoxelProducer::GPUVP_DATA_MAXRES )
-		{
+			newnode.setTerminal(false);
+			break;
+		case GPUVoxelProducer::GPUVP_DATA_MAXRES:
 			newnode.setStoreBrick();
-			newnode.setTerminal( true );
-		}
-
-		// Finally, write the new node information into the node pool by selecting channels :
-		// - Loki::Int2Type< 0 >() points to node information
-		// - Loki::Int2Type< 1 >() points to brick information
-		//
-		// newElemAddress.x + processID : is the adress of the new node in the node pool
-		nodePool.getChannel( Loki::Int2Type< 0 >() ).set( newElemAddress.x + processID, newnode.childAddress );
-		nodePool.getChannel( Loki::Int2Type< 1 >() ).set( newElemAddress.x + processID, newnode.brickAddress );
+			newnode.setTerminal(true);
+			break;
 	}
 
-	return 0;
+	// Finally, write the new node information into the node pool by selecting channels :
+	// - Loki::Int2Type< 0 >() points to node information
+	// - Loki::Int2Type< 1 >() points to brick information
+	//
+	// newElemAddress.x + processID : is the adress of the new node in the node pool
+	nodePool.getChannel(Loki::Int2Type<0>()).set(newElemAddress.x + processID, newnode.childAddress);
+	nodePool.getChannel(Loki::Int2Type<1>()).set(newElemAddress.x + processID, newnode.brickAddress);
+
+	return 0U;
 }
 
 /******************************************************************************
@@ -163,13 +165,17 @@ inline uint ProducerKernel< TDataStructureType >
  *
  * @return A feedback value that the user can return.
  ******************************************************************************/
-template< typename TDataStructureType >
-template< typename GPUPoolKernelType >
+template <typename TDataStructureType>
+template <typename GPUPoolKernelType>
 __device__
-inline uint ProducerKernel< TDataStructureType >
-::produceData( GPUPoolKernelType& dataPool, uint requestID, uint processID, uint3 newElemAddress,
-			  const GvCore::GvLocalizationInfo& parentLocInfo, Loki::Int2Type< 1 > )
-{
+inline uint ProducerKernel<TDataStructureType>::produceData(
+	GPUPoolKernelType& dataPool,
+	uint requestID,
+	uint processID,
+	uint3 newElemAddress,
+	const GvCore::GvLocalizationInfo& parentLocInfo,
+	Loki::Int2Type<1>
+) {
 	// NOTE :
 	// In this method, you are inside a brick of voxels.
 	// The goal is to determine, for each voxel of the brick, the value of each of its channels.
@@ -216,11 +222,10 @@ inline uint ProducerKernel< TDataStructureType >
 	// Iterate through z axis step by step as blockDim.z is equal to 1
 
     // - number of voxels
-    const uint3 elemSize = BrickRes::get() + make_uint3( 2 * BorderSize );  // real brick size (with borders)
-    const int nbVoxels = elemSize.x * elemSize.y * elemSize.z;
+    const uint3 elemSize = BrickRes::get() + make_uint3(2 * BorderSize); //brick's edge length with borders
+    const uint nbVoxels = elemSize.x * elemSize.y * elemSize.z;
     // - number of threads
-    //const int nbThreads = blockDim.x * blockDim.y * blockDim.z;
-    const int nbThreads = blockDim.x;
+    const uint nbThreads = blockDim.x;
     // - global thread index in the block (linearized)
     //const int threadIndex1D = threadIdx.z * ( blockDim.x * blockDim.y ) + ( threadIdx.y * blockDim.x + threadIdx.x ); // written in FMAD-style
     const int threadIndex1D = threadIdx.x;
@@ -295,11 +300,12 @@ inline uint ProducerKernel< TDataStructureType >
  *
  * @return the type of the region
  ******************************************************************************/
-template< typename TDataStructureType >
+template <typename TDataStructureType>
 __device__
-inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
-::getRegionInfo( uint3 regionCoords, uint regionDepth )
-{
+inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::getRegionInfo(
+	uint3 regionCoords,
+	uint regionDepth
+) {
 	// Limit the depth.
 	// Currently, 32 is the max depth of the GigaVoxels engine.
 	if ( regionDepth >= 32 )
@@ -356,32 +362,36 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel< TDataStructureType >
 	// float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
 	//
 	// // // Test if any of the eight brick corner lies in the cube
-	// // if ( (isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
-	// // 	isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// // if ( (isInObject( q000 ) && isInObject( q001 ) && isInObject( q010 ) && isInObject( q011 ) &&
+	// // 	isInObject( q100 ) && isInObject( q101 ) && isInObject( q110 ) && isInObject( q111 ))
 	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	// // else if(!(isInCylinder( q000 ) && isInCylinder( q001 ) && isInCylinder( q010 ) && isInCylinder( q011 ) &&
-	// // 		isInCylinder( q100 ) && isInCylinder( q101 ) && isInCylinder( q110 ) && isInCylinder( q111 ))
+	// // else if(!(isInObject( q000 ) && isInObject( q001 ) && isInObject( q010 ) && isInObject( q011 ) &&
+	// // 		isInObject( q100 ) && isInObject( q101 ) && isInObject( q110 ) && isInObject( q111 ))
 	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
 	// // else return GPUVoxelProducer::GPUVP_DATA;
 	//
-	// if ( isInCylinder( q000 ) || isInCylinder( q001 ) || isInCylinder( q010 ) || isInCylinder( q011 ) ||
-	// 	isInCylinder( q100 ) || isInCylinder( q101 ) || isInCylinder( q110 ) || isInCylinder( q111 ) )
+	// if ( isInObject( q000 ) || isInObject( q001 ) || isInObject( q010 ) || isInObject( q011 ) ||
+	// 	isInObject( q100 ) || isInObject( q101 ) || isInObject( q110 ) || isInObject( q111 ) )
 	// {
 	// 	return GPUVoxelProducer::GPUVP_DATA;
 	// }
 	//
 	// return GPUVoxelProducer::GPUVP_CONSTANT;
-	////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 
-template< typename TDataStructureType >
+template <typename TDataStructureType>
 __device__
-inline bool ProducerKernel< TDataStructureType >::isInSphere( const float3 pPoint )
-{
-	return ( length( pPoint ) < 1.f );
+inline bool ProducerKernel<TDataStructureType>::isInObject(const float3 pPoint) {
+	return isInCylinder(pPoint);
 }
 
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInSphere(const float3 pPoint) {
+	return length(pPoint) < 1.f;
+}
 
 template <typename TDataStructureType>
 __device__
@@ -389,71 +399,11 @@ inline bool ProducerKernel<TDataStructureType>::isInCube(const float3 pPoint) {
 	return pPoint.x < 1.f && pPoint.y < 1.f && pPoint.z < 1.f;
 }
 
-
-
-
-
-
-
-
-
-
-
-// template <typename TDataStructureType>
-// __device__
-// inline bool ProducerKernel<TDataStructureType>::isInCylinder(
-// 	const float3 pPoint,
-// 	const float3 pCenter1,
-// 	const float3 pCenter2,
-// 	const float pRadius,
-// 	const float3 upVector,
-// 	const float pAngle
-// ) {
-// 	// texture<float, 2> cDisplacementMap
-// 	return false;
-// }
-
-template <typename TDataStructureType>
-__device__
-inline bool ProducerKernel<TDataStructureType>::isInCylinder(
-	const float3 pPoint,
-	const float3 pCenter1,
-	const float3 pCenter2,
-	const float pRadius
-) {
-	//A point is in the cylinder if it's projection on the cylinder's axis is between the two bases and the distance between the point to it's projection is lower than the cylinder's radius.
-	const float3 baseToBase 		= pCenter2 - pCenter1;
-	const float height 				= length(baseToBase);
-	const float3 axis 				= baseToBase/height;
-	const float3 baseToPoint 		= pPoint - pCenter1;
-	const float scalar 				= dot(baseToPoint, axis);
-	const float3 projected 			= pCenter1 + axis * scalar;
-	const float3 projectedToPoint 	= pPoint - projected;
-
-	// const float3 upVector = make_float3()
-	// const float u = ; //horizontal/angle parameterization
-	// const float v = scalar/height; //vertical parameterization
-
-
-	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= pRadius;
-}
-
-// template <typename TDataStructureType>
-// __device__
-// inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
-// 	double v = 0.7f;//0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
-// 	return isInCylinder(
-// 		pPoint,
-// 		make_float3(-0.5f),
-// 		make_float3(0.5f),
-// 		v //0.2f
-// 	);
-// }
-
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
-	//The default cylinder's first base center is placed on the floor at the origin, the second up of 1z unit and has a unit radius influenced by the displacement map.
+	//The default cylinder's first base center is placed on the floor (Oxy) at the origin, the second up of 1z unit and has a unit radius influenced by the displacement map.
+	//The direction of the angle 0 is aligned with the x axis.
 	const float3 center1			= make_float3(0.f);
 	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
 	const float height 				= 1.f;
@@ -463,12 +413,13 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint
 	const float3 projected 			= center1 + axis * scalar;
 	const float3 projectedToPoint 	= pPoint - projected;
 
-	//WARNING! A on the cylinder's axis has no horizontal/angle parameterization.
+	//WARNING! A point on the cylinder's axis has no horizontal/angle parameterization.
 	if(length(projectedToPoint) <= 0.f) return false;
 
-	const float u = acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)))/3.14f; //horizontal/angle parameterization
+	const float u = acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)))/PRODUCER_PI; //horizontal/angle parameterization
 	const float v = scalar/height; //vertical parameterization
 	const float displacement = tex2D(cDisplacementMap, u, v);
+	//TODO:parameter for max/min radius
 	const float radius = 0.5f * displacement;//clamp(displacement, 0.f, 1000.f)/1000.f;
 
 	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= radius;
@@ -476,47 +427,15 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint
 
 template <typename TDataStructureType>
 __device__
-inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(
-	const float3 pPoint,
-	const float3 pCenter1,
-	const float3 pCenter2,
-	const float pRadius
-) {
-	//This function should be called knowing we are already on or in the cylinder.
-	const float3 baseToBase 		= pCenter2 - pCenter1;
-	const float height 				= length(baseToBase);
-	const float3 axis 				= baseToBase/height;
-	const float3 baseToPoint 		= pPoint - pCenter1;
-	const float scalar 				= dot(baseToPoint, axis);
-	const float3 projected 			= pCenter1 + axis * scalar;
-	const float3 projectedToPoint 	= pPoint - projected;
-
-	const float epsilon = 0.01f;
-	const float heightRatio = scalar/height;
-
-	if(1.f - epsilon < heightRatio && heightRatio < 1.f + epsilon)
-		return axis;
-	else if(0.f - epsilon < heightRatio && heightRatio < 0.f + epsilon)
-		return -1.f * axis;
-	else
-		return normalize(projectedToPoint);
+inline float3 ProducerKernel<TDataStructureType>::objectNormal(const float3 pPoint) {
+	return cylinderNormal(pPoint);
 }
-
-// template <typename TDataStructureType>
-// __device__
-// inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
-// 	double v = 0.7f;//0.2f + ((double)((cElapsedSeconds*1000U + cElapsedMiliseconds)%10000U))/40000.f;
-// 	return cylinderNormal(
-// 		pPoint,
-// 		make_float3(-0.5f),
-// 		make_float3(0.5f),
-// 		v //0.2f
-// 	);
-// }
 
 template <typename TDataStructureType>
 __device__
 inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pPoint) {
+	//TODO: take the future transformation matrix of the cylinder into account
+
 	//This function should be called knowing we are already on or in the cylinder.
 	const float3 center1			= make_float3(0.f);
 	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
@@ -530,9 +449,11 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pP
 	const float epsilon = 0.01f;
 	const float heightRatio = scalar/height;
 
-	if(1.f - epsilon < heightRatio && heightRatio < 1.f + epsilon)
+	//Normal of the upper cup.
+	if(1.f - epsilon < heightRatio)
 		return axis;
-	else if(0.f - epsilon < heightRatio && heightRatio < 0.f + epsilon)
+	//Normal of the under cup.
+	else if(heightRatio < 0.f + epsilon)
 		return -1.f * axis;
 	else
 		return normalize(projectedToPoint);

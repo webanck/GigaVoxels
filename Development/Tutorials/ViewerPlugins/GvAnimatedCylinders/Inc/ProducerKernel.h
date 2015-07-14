@@ -70,6 +70,10 @@ __constant__ uint cElapsedMiliseconds;
  */
 texture<float, cudaTextureType2D> cDisplacementMap;
 float *cDisplacementMapData;
+__constant__ uint cDisplacementMapWidth;
+__constant__ uint cDisplacementMapHeight;
+
+#define PRODUCER_PI 3.141592654f
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -253,6 +257,16 @@ private:
 	inline GPUVoxelProducer::GPUVPRegionInfo getRegionInfo( uint3 regionCoords, uint regionDepth );
 
 	/**
+	 * Helper function to test if a point is inside the scene object.
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return Wheter the point is inside the object.
+	 */
+	__device__
+	static inline bool isInObject(const float3 pPoint);
+
+	/**
 	 * Helper function to test if a point is inside the unit sphere centered in [0,0,0].
 	 *
 	 * @param pPoint The point to test.
@@ -276,18 +290,29 @@ private:
 	 * Helper function to test if a point is inside a cylinder.
 	 *
 	 * @param pPoint The point to test.
-	 * @param pCenter1 The center of the first base of the cylinder.
-	 * @param pCenter2 The center of the second base of the cylinder.
-	 * @param pRadius The radius of the cylinder.
 	 *
 	 * @return Wheter the point is inside the cylinder.
 	 */
 	__device__
-	static inline bool isInCylinder(const float3 pPoint, const float3 pCenter1, const float3 pCenter2, const float pRadius);
-	__device__
 	static inline bool isInCylinder(const float3 pPoint);
+
+	/**
+	 * Helper function to compute the normal of a point on or in the object.
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return The normal at the point of the object.
+	 */
 	__device__
-	static inline float3 cylinderNormal(const float3 pPoint, const float3 pCenter1, const float3 pCenter2, const float pRadius);
+	static inline float3 objectNormal(const float3 pPoint);
+
+	/**
+	 * Helper function to compute the normal of a point on or in the cylinder.
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return The normal at the point of the cylinder.
+	 */
 	__device__
 	static inline float3 cylinderNormal(const float3 pPoint);
 

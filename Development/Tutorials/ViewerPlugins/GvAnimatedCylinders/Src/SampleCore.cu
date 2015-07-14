@@ -372,10 +372,10 @@ void SampleCore::draw()
 	// Render
 	updateDisplacementMap();
 	uint regularisationNb = 0U;
-	cudaMemcpyToSymbol(cRegularisationNb, &regularisationNb, sizeof(regularisationNb), 0, cudaMemcpyHostToDevice);
+	GV_CUDA_SAFE_CALL(cudaMemcpyToSymbol(cRegularisationNb, &regularisationNb, sizeof(regularisationNb), 0, cudaMemcpyHostToDevice));
 	for(uint i=0U; i<15U; i++)
 		_pipeline->execute( modelMatrix, viewMatrix, projectionMatrix, viewport );
-	cudaMemcpyFromSymbol(&regularisationNb, cRegularisationNb, sizeof(regularisationNb), 0, cudaMemcpyDeviceToHost);
+	GV_CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&regularisationNb, cRegularisationNb, sizeof(regularisationNb), 0, cudaMemcpyDeviceToHost));
 	std::cout << "Regularisations: " << regularisationNb << std::endl;
 
 	if ( _graphicsEnvironment->getType() != 0 )
@@ -1498,7 +1498,7 @@ void SampleCore::updateDisplacementMap() {
 	}
 
 	//Set the displacement map values.
-	const float loopPart = 3.14f * (static_cast<float>(_elapsedSeconds) + static_cast<float>(_elapsedMiliseconds) / 1000.f) / loopSeconds;
+	const float loopPart = PRODUCER_PI * (static_cast<float>(_elapsedSeconds) + static_cast<float>(_elapsedMiliseconds) / 1000.f) / loopSeconds;
 	// std::cout << "seconds=" << _elapsedSeconds << std::endl;
 	// std::cout << "mseconds=" << _elapsedMiliseconds << std::endl;
 	// std::cout << "loopPart=" << loopPart << std::endl;
@@ -1506,14 +1506,14 @@ void SampleCore::updateDisplacementMap() {
 	// for(uint i=0U; i<nbElelements; i++) data[i] = fabs(sin(static_cast<float>(i)+loopPart));
 	//////////////////////////////////////////////////////////////////////waving patern as a 2 dimensions grid
 	for(uint i=0U; i<height; i++) for(uint j=0U; j<width; j++) {
-		const float verticalFrequency 	= 3.14f*static_cast<float>(verticalWaves)/static_cast<float>(height);
-		const float verticalHeight 		= (
+		const float verticalFrequency = (2.f * PRODUCER_PI * static_cast<float>(verticalWaves))/static_cast<float>(height);
+		const float verticalHeight = (
 			verticalWaves > 0U ?
 			(1.f + sin(static_cast<float>(i)*verticalFrequency+loopPart))/2.f :
 			1.f
 		);
-		const float horizontalFrequency = 3.14f*static_cast<float>(horizontalWaves)/static_cast<float>(width);
-		const float horizontalHeight 	= (
+		const float horizontalFrequency = (2.f * PRODUCER_PI * static_cast<float>(horizontalWaves))/static_cast<float>(width);
+		const float horizontalHeight = (
 			horizontalWaves > 0U ?
 			(1.f + sin(static_cast<float>(j)*horizontalFrequency+loopPart))/2.f :
 			1.f
