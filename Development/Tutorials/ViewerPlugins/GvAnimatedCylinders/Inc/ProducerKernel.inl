@@ -410,25 +410,22 @@ __device__
 inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint) {
 	//The default cylinder's first base center is placed on the floor (Oxy) at the origin, the second up of 1z unit and has a unit radius influenced by the displacement map.
 	//The direction of the angle 0 is aligned with the x axis.
-	const float3 center1			= make_float3(0.f);
-	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
-	const float height 				= 1.f;
-	const float3 axis 				= make_float3(0.f, 0.f, 1.f);
-	const float3 baseToPoint 		= pPoint - center1;
-	const float scalar 				= dot(baseToPoint, axis);
-	const float3 projected 			= center1 + axis * scalar;
-	const float3 projectedToPoint 	= pPoint - projected;
+	const float heightRatio 		= pPoint.z;
+	const float2 projectedToPoint 	= make_float2(pPoint.x, pPoint.y);
+	const float projectedLength		= length(projectedToPoint);
 
 	//WARNING! A point on the cylinder's axis has no horizontal/angle parameterization.
-	if(length(projectedToPoint) <= 0.f) return false;
+	if(projectedLength <= 0.f) return false;
 
-	const float u = acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)))/PRODUCER_PI; //horizontal/angle parameterization
-	const float v = scalar/height; //vertical parameterization
+	const float sign = (projectedToPoint.y > 0.f ? 1.f : -1.f); //determinant (ad - bc with a = 1 and b = 0) for oriented surface
+	const float angle = sign * acos(projectedToPoint.x/projectedLength);
+	const float u = angle/(2.f*PRODUCER_PI); //horizontal/angle parameterization
+	const float v = heightRatio; //vertical parameterization
 	const float displacement = tex2D(cDisplacementMap, u, v);
 	//TODO:parameter for max/min radius
 	const float radius = 0.5f * displacement;//clamp(displacement, 0.f, 1000.f)/1000.f;
 
-	return 0.f <= scalar && scalar <= height && length(projectedToPoint) <= radius;
+	return 0.f <= heightRatio && heightRatio <= 1.f && projectedLength <= radius;
 }
 
 template <typename TDataStructureType>
@@ -443,37 +440,31 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pP
 	//TODO: take the future transformation matrix of the cylinder into account
 
 	//This function should be called knowing we are already on or in the cylinder.
-	const float3 center1			= make_float3(0.f);
-	const float3 baseToBase 		= make_float3(0.f, 0.f, 1.f);
-	const float height 				= 1.f;
-	const float3 axis 				= make_float3(0.f, 0.f, 1.f);
-	const float3 baseToPoint 		= pPoint - center1;
-	const float scalar 				= dot(baseToPoint, axis);
-	const float3 projected 			= center1 + axis * scalar;
-	const float3 projectedToPoint 	= pPoint - projected;
+	const float heightRatio 		= pPoint.z;
+	const float2 projectedToPoint 	= make_float2(pPoint.x, pPoint.y);
+	const float projectedLength		= length(projectedToPoint);
 
 	const float epsilon = 0.01f;
-	const float heightRatio = scalar/height;
 
 	//Normal of the upper cup.
 	if(1.f - epsilon < heightRatio)
-		return axis;
+		return make_float3(0.f, 0.f, 1.f);
 	//Normal of the under cup.
 	else if(heightRatio < 0.f + epsilon)
-		return -1.f * axis;
+		return make_float3(0.f, 0.f, -1.f);
 	//Other normals.
 	else {
 		//WARNING! A point on the cylinder's axis has no horizontal/angle parameterization, the axis is chosen.
-		if(length(projectedToPoint) <= 0.f) return axis;
+		if(projectedLength <= 0.f) return make_float3(0.f, 0.f, 1.f);
 
 		//Horizontal/angle parameterization (texture interpolation, cylinder curvature and toring).
 		const float elementaryWidth = 1.f/static_cast<float>(cDisplacementMapWidth);
 		const float sign = (projectedToPoint.y > 0.f ? 1.f : -1.f); //determinant (ad - bc with a = 1 and b = 0) for oriented surface
-		const float angle = sign * acos(dot(make_float3(1.f, 0.f, 0.f), normalize(projectedToPoint)));
+		const float angle = sign * acos(projectedToPoint.x/projectedLength);
 		const float u = angle/(2.f*PRODUCER_PI);
 		//Vertical parameterization (texture interpolation, no curvature and toring).
 		const float elementaryHeight = 1.f/static_cast<float>(cDisplacementMapHeight);
-		const float v = scalar/height;
+		const float v = heightRatio;
 
 		//Horizontal part of the normal.
 		const float u0 = u - elementaryWidth/2.f;
