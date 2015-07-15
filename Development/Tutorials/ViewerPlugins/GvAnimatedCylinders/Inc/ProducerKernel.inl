@@ -245,7 +245,7 @@ inline uint ProducerKernel<TDataStructureType>::produceData(
 		for(i=0U; i<=subdivRes.x; i++)
 			for(j=0U; j<=subdivRes.y; j++)
 				for(k=0U; k<=subdivRes.z; k++)
-					inNb += isInObject(make_float3(
+					inNb += isInScene(make_float3(
 						q000.x + i*levelResInv.x/subdivRes.x,
 						q000.y + j*levelResInv.y/subdivRes.y,
 						q000.z + k*levelResInv.z/subdivRes.z
@@ -278,7 +278,7 @@ inline uint ProducerKernel<TDataStructureType>::produceData(
 		//Computation of the normal if the voxel is visible.
 		const float4 voxelNormal = (
 			voxelColor.w > 0.f ?
-			make_float4(objectNormal(q000 + 0.5f*levelResInv), 1.f) :
+			make_float4(sceneNormal(q000 + 0.5f*levelResInv), 1.f) :
 			make_float4(0.f)
 		);
 
@@ -344,7 +344,7 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 	for(i=0U; i<=subdivRes.x; i++)
 		for(j=0U; j<=subdivRes.y; j++)
 			for(k=0U; k<=subdivRes.z; k++)
-				inNb += isInObject(make_float3(
+				inNb += isInScene(make_float3(
 					q000.x + i*brickSize.x/subdivRes.x,
 					q000.y + j*brickSize.y/subdivRes.y,
 					q000.z + k*brickSize.z/subdivRes.z
@@ -368,16 +368,16 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 	// float3 q111 = make_float3( q000.x + brickSize.x, q000.y + brickSize.y, q000.z + brickSize.z);
 	//
 	// // // Test if any of the eight brick corner lies in the cube
-	// // if ( (isInObject( q000 ) && isInObject( q001 ) && isInObject( q010 ) && isInObject( q011 ) &&
-	// // 	isInObject( q100 ) && isInObject( q101 ) && isInObject( q110 ) && isInObject( q111 ))
+	// // if ( (isInScene( q000 ) && isInScene( q001 ) && isInScene( q010 ) && isInScene( q011 ) &&
+	// // 	isInScene( q100 ) && isInScene( q101 ) && isInScene( q110 ) && isInScene( q111 ))
 	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
-	// // else if(!(isInObject( q000 ) && isInObject( q001 ) && isInObject( q010 ) && isInObject( q011 ) &&
-	// // 		isInObject( q100 ) && isInObject( q101 ) && isInObject( q110 ) && isInObject( q111 ))
+	// // else if(!(isInScene( q000 ) && isInScene( q001 ) && isInScene( q010 ) && isInScene( q011 ) &&
+	// // 		isInScene( q100 ) && isInScene( q101 ) && isInScene( q110 ) && isInScene( q111 ))
 	// // ) return GPUVoxelProducer::GPUVP_DATA_MAXRES;
 	// // else return GPUVoxelProducer::GPUVP_DATA;
 	//
-	// if ( isInObject( q000 ) || isInObject( q001 ) || isInObject( q010 ) || isInObject( q011 ) ||
-	// 	isInObject( q100 ) || isInObject( q101 ) || isInObject( q110 ) || isInObject( q111 ) )
+	// if ( isInScene( q000 ) || isInScene( q001 ) || isInScene( q010 ) || isInScene( q011 ) ||
+	// 	isInScene( q100 ) || isInScene( q101 ) || isInScene( q110 ) || isInScene( q111 ) )
 	// {
 	// 	return GPUVoxelProducer::GPUVP_DATA;
 	// }
@@ -386,11 +386,25 @@ inline GPUVoxelProducer::GPUVPRegionInfo ProducerKernel<TDataStructureType>::get
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInScene(const float3 pPoint) {
+	return isInObject(pPoint, CYLINDER_TRANSFORMATION);
+}
 
 template <typename TDataStructureType>
 __device__
 inline bool ProducerKernel<TDataStructureType>::isInObject(const float3 pPoint) {
 	return isInCylinder(pPoint);
+}
+template <typename TDataStructureType>
+__device__
+inline bool ProducerKernel<TDataStructureType>::isInObject(
+	const float3 pPoint,
+	const glm::mat4 pTransformation
+) {
+	const glm::vec4 point(glm::inverse(pTransformation) * glm::vec4(pPoint.x, pPoint.y, pPoint.z, 1.f));
+	return isInObject(make_float3(point.x/point.w, point.y/point.w, point.z/point.w));
 }
 
 template <typename TDataStructureType>
@@ -430,8 +444,23 @@ inline bool ProducerKernel<TDataStructureType>::isInCylinder(const float3 pPoint
 
 template <typename TDataStructureType>
 __device__
+inline float3 ProducerKernel<TDataStructureType>::sceneNormal(const float3 pPoint) {
+	return objectNormal(pPoint, CYLINDER_TRANSFORMATION);
+}
+
+template <typename TDataStructureType>
+__device__
 inline float3 ProducerKernel<TDataStructureType>::objectNormal(const float3 pPoint) {
 	return cylinderNormal(pPoint);
+}
+template <typename TDataStructureType>
+__device__
+inline float3 ProducerKernel<TDataStructureType>::objectNormal(
+	const float3 pPoint,
+	const glm::mat4 pTransformation
+) {
+	const glm::vec4 point(glm::inverse(pTransformation) * glm::vec4(pPoint.x, pPoint.y, pPoint.z, 1.f));
+	return objectNormal(make_float3(point.x/point.w, point.y/point.w, point.z/point.w));
 }
 
 template <typename TDataStructureType>

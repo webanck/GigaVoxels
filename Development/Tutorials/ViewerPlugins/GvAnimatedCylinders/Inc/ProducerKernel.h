@@ -45,6 +45,13 @@
 // CUDA
 #include <cuda_runtime.h>
 
+// GLM for CUDA
+#define GLM_FORCE_CUDA
+#define GLM_FORCE_RADIANS
+// #include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 /******************************************************************************
  ************************* DEFINE AND CONSTANT SECTION ************************
  ******************************************************************************/
@@ -74,6 +81,7 @@ __constant__ uint cDisplacementMapWidth;
 __constant__ uint cDisplacementMapHeight;
 
 #define PRODUCER_PI 3.141592654f
+#define CYLINDER_TRANSFORMATION glm::rotate(PRODUCER_PI/2.f, 1.f, 0.f, 0.f)
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
@@ -257,6 +265,16 @@ private:
 	inline GPUVoxelProducer::GPUVPRegionInfo getRegionInfo( uint3 regionCoords, uint regionDepth );
 
 	/**
+	 * Helper function to test if a point is inside the scene.
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return Wheter the point is inside the scene.
+	 */
+	__device__
+	static inline bool isInScene(const float3 pPoint);
+
+	/**
 	 * Helper function to test if a point is inside the scene object.
 	 *
 	 * @param pPoint The point to test.
@@ -265,6 +283,16 @@ private:
 	 */
 	__device__
 	static inline bool isInObject(const float3 pPoint);
+	/**
+	 * Helper function to test if a point is inside the scene object.
+	 *
+	 * @param pPoint The point to test.
+	 * @param pTransformation The transformation matrix to apply to the object.
+	 *
+	 * @return Wheter the point is inside the object.
+	 */
+	__device__
+	static inline bool isInObject(const float3 pPoint, const glm::mat4 pTransformation);
 
 	/**
 	 * Helper function to test if a point is inside the unit sphere centered in [0,0,0].
@@ -297,6 +325,16 @@ private:
 	static inline bool isInCylinder(const float3 pPoint);
 
 	/**
+	 * Helper function to compute the normal of a point on or in the scene.
+	 *
+	 * @param pPoint The point to test.
+	 *
+	 * @return The normal at the point of the scene.
+	 */
+	__device__
+	static inline float3 sceneNormal(const float3 pPoint);
+
+	/**
 	 * Helper function to compute the normal of a point on or in the object.
 	 *
 	 * @param pPoint The point to test.
@@ -305,6 +343,16 @@ private:
 	 */
 	__device__
 	static inline float3 objectNormal(const float3 pPoint);
+	/**
+	 * Helper function to compute the normal of a point on or in the object.
+	 *
+	 * @param pPoint The point to test.
+	 * @param pTransformation The transformation matrix to apply to the object.
+	 *
+	 * @return The normal at the point of the object.
+	 */
+	__device__
+	static inline float3 objectNormal(const float3 pPoint, const glm::mat4 pTransformation);
 
 	/**
 	 * Helper function to compute the normal of a point on or in the cylinder.
