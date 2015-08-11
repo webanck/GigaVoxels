@@ -502,20 +502,21 @@ inline float3 ProducerKernel<TDataStructureType>::cylinderNormal(const float3 pP
 		const float r1 = tex2D(cDisplacementMap, u1, v);
 		const float2 p0 = make_float2(r0*cos(u0*2.f*PRODUCER_PI), r0*sin(u0*2.f*PRODUCER_PI));
 		const float2 p1 = make_float2(r1*cos(u1*2.f*PRODUCER_PI), r1*sin(u1*2.f*PRODUCER_PI));
-		const float2 vector = p1 - p0;
-		const float uRatio = dot(p0, vector)/(r0*length(vector));
-		const float3 uNormal = make_float3(normalize(uRatio*p0 + (1.f-uRatio)*p1), 0.f);
-		//Horizontal part of the normal.
+		const float2 tangent = p1 - p0;
+		const float3 uNormal = normalize(make_float3(tangent.y, -tangent.x, 0.f));
+
+		//Vertical part of the normal.
 		const float v0 = v - elementaryHeight/2.f;
 		const float v1 = v + elementaryHeight/2.f;
 		const float h0 = tex2D(cDisplacementMap, u, v0);
 		const float h1 = tex2D(cDisplacementMap, u, v1);
 		const float3 vNormal = normalize(make_float3(
-			(h1 - h0)*cos(angle),
-			(h1 - h0)*sin(angle),
-			-elementaryHeight
+			elementaryHeight * cos(angle),
+			elementaryHeight * sin(angle),
+			(h1 - h0)*(1.f - 2.f * cos(angle) * cos(angle))
 		));
 
+		// return normalize(make_float3(cos(angle), sin(angle), 0.f)); //cylinder normals
 		return normalize(uNormal + vNormal);
 	}
 }
