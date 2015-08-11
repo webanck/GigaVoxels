@@ -1472,14 +1472,15 @@ bool SampleCore::cacheFlushing() {
 
 void SampleCore::updateDisplacementMap(bool destroy) {
 	//Parts in each dimension of the map (minimum 1).
-	const size_t width = 1000U;
+	const size_t width = 360U;
 	const size_t height = 1000U;
 	//Total number of cells in the map.
 	const uint nbElelements = width*height;
 	//Parameterization of the waves.
-	const float loopSeconds = 10.f;
+	const float phase = PRODUCER_PI/2.f;
+	const float loopSeconds = 0.f;
 	const uint verticalWaves = 1U;
-	const uint horizontalWaves = 0U;
+	const uint horizontalWaves = 3U;
 
 	//Memory management variables.
 	static bool initialized = false;
@@ -1510,12 +1511,16 @@ void SampleCore::updateDisplacementMap(bool destroy) {
 	}
 
 	//Set the displacement map values.
-	const float loopPart = PRODUCER_PI * (static_cast<float>(_elapsedSeconds) + static_cast<float>(_elapsedMiliseconds) / 1000.f) / loopSeconds;
+	const float loopPart = phase + (
+		loopSeconds > 0U ?
+		PRODUCER_PI * (static_cast<float>(_elapsedSeconds) + static_cast<float>(_elapsedMiliseconds) / 1000.f) / loopSeconds :
+		0.f
+	);
 	// std::cout << "seconds=" << _elapsedSeconds << std::endl;
 	// std::cout << "mseconds=" << _elapsedMiliseconds << std::endl;
 	// std::cout << "loopPart=" << loopPart << std::endl;
 	//////////////////////////////////////////////////////////////////////waving patern as a 1 dimension line
-	// for(uint i=0U; i<nbElelements; i++) data[i] = fabs(sin(static_cast<float>(i)+loopPart));
+	// for(uint i=0U; i<nbElelements; i++) data[i] = fabs(sin(static_cast<float>(i/100U)+loopPart));
 	//////////////////////////////////////////////////////////////////////waving patern as a 2 dimensions grid
 	for(uint i=0U; i<height; i++) for(uint j=0U; j<width; j++) {
 		const float verticalFrequency = (2.f * PRODUCER_PI * static_cast<float>(verticalWaves))/static_cast<float>(height);
