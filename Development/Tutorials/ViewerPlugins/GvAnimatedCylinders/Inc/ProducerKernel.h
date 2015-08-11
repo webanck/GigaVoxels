@@ -81,7 +81,8 @@ __constant__ uint cDisplacementMapWidth;
 __constant__ uint cDisplacementMapHeight;
 
 #define PRODUCER_PI 3.141592654f
-#define CYLINDER_TRANSFORMATION glm::rotate(PRODUCER_PI/2.f, 1.f, 0.f, 0.f)
+#define CYLINDER_TRANSFORMATION glm::mat4()
+//glm::rotate(PRODUCER_PI/2.f, 1.f, 0.f, 0.f)
 
 /******************************************************************************
  ***************************** TYPE DEFINITION ********************************
