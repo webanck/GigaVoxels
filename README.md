@@ -1,23 +1,23 @@
-#The GigaVoxels Library!
+# The GigaVoxels Library!
 
 The Gigavoxels is a render pipeline that let you render complex volumetric scenes containing billions of voxels as a representation of volumetric. The library has been written by a [team of the INRIA](http://gigavoxels.inrialpes.fr/) after the work of [Cyrill Crassin](http://maverick.inria.fr/Membres/Cyril.Crassin/).
 
 The main components are implemented in C++ using mainly CUDA and a bit of OpenGL and the interface uses the Qt API.
 
-##Prerequisites
+## Prerequisites
 
-###A Nvidia GPU
+### A Nvidia GPU
 
 A Nvidia GPU is required in order to run the CUDA executable on the GPU side.
 Be sure to check the compute capability of your specific model because you will need this information later during the configuration of the library.
 
 Warning: if your GPU is to old, it might not even be compatible with CUDA! So, again, check the compute capability before going further.
 
-###CUDA
+### CUDA
 
 Be sure to have CUDA installed. Detailed explanations are given on the [Nvidia official site](http://docs.nvidia.com/cuda/index.html#getting-started-guides) for Windows, Linux and Mac.
 
-###CMake
+### CMake
 
 The library is cross platform thanks to [CMake](http://www.cmake.org/).
 On Ubuntu 14.04 you can install the maintained package:
@@ -25,7 +25,7 @@ On Ubuntu 14.04 you can install the maintained package:
 sudo apt-get install -y cmake cmake-gui
 ```
 
-###CUDPP (CUDA Data Parallel Primitives Library)
+### CUDPP (CUDA Data Parallel Primitives Library)
 
 The GigaVoxels library uses [CUDPP](http://cudpp.github.io/) currently in the 2.2 version.
 Unfortunately you need to compile it from source but it is available on GitHub [here](https://github.com/cudpp/cudpp).
@@ -59,7 +59,7 @@ make
 sudo make install
 ```
 
-###Libraries
+### Libraries
 
 You also need additional libraries.
 
@@ -77,16 +77,16 @@ sudo apt-get install -y \
   libglm-dev
 ```
 
-##Installation
+## Installation
 
-###Download
+### Download
 Once you have all the prerequisites, download the files of the repository: the source code and some sample data.
 ```
 git clone https://github.com/webanck/GigaVoxels.git
 ```
 The source code and the config files for CMake are in the [Development](Development) directory .
 
-###Configure
+### Configure
 You need to adapt some settings to your environment.
 Firstly, if any, give the path of the external required libraries in the file [GvSettings_CMakeImport.cmake](Development/CMake/GvSettings_CMakeImport.cmake).
 For instance, you might have to change the path of the CUDPP library you compiled earlier or you can move it to `/usr/local/cudpp` (see the lines bellow).
@@ -125,5 +125,5 @@ list(APPEND CUDA_NVCC_FLAGS "-arch=sm_20")
 #list(APPEND CUDA_NVCC_FLAGS "-arch=sm_35")
 ```
 
-###Compile
+### Compile
 I added a [shell script](Install/Linux/makeInstall.sh) for the Linux users so they only have to launch it to clean and recompile all the library, the tools and the specific example I am working on: the [GvDynamicLoad](Development/Tutorials/ViewerPlugins/GvDynamicLoad).
